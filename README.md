@@ -23,13 +23,19 @@ Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each m
 
 ## Implemented API
 
-Only three health endpoints are implemented: `GET /api/health`, `GET /api/health/live`, and `GET /api/health/ready` (process-only readiness placeholder). All listed feature paths are planned until implemented by their owners.
+- Health: `GET /api/health`, `GET /api/health/live`, and `GET /api/health/ready` (process-only readiness placeholder).
+- Auth and authorization (M1): register, login, logout and current user under `/api/auth`; owner-only order reads under `/api/orders`; admin-only routes under `/api/admin`. Data is in memory and resets on restart.
+
+See [docs/api/README.md](docs/api/README.md) for the contract and the access-control demo. All other listed feature paths are planned until implemented by their owners.
 
 ## Run locally
 
 ```sh
 npm install
 npm run dev
+npm test
 ```
+
+Copy `server/.env.example` to `server/.env` and set `ADMIN_EMAIL`/`ADMIN_PASSWORD` to get an admin account.
 
 The npm workspace starts the React app on port `5173` and the API on port `5000`; Vite proxies `/api` requests to the backend.
