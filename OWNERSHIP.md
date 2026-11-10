@@ -1,6 +1,6 @@
 # Member feature and file ownership
 
-This is the six-week implementation map. Only the scaffold and three health endpoints exist today. Listed feature files marked `Create` are planned and must be added by the assigned member. API MVC: routes dispatch to controllers, controllers return JSON, models own application data. React uses models, controllers (hooks/actions), and views.
+This is the six-week implementation map. The scaffold, health endpoints and M1's server-side auth and authorization exist today. Listed feature files marked `Create` are planned and must be added by the assigned member. API MVC: routes dispatch to controllers, controllers return JSON, models own application data. React uses models, controllers (hooks/actions), and views.
 
 ## Team
 
@@ -30,13 +30,15 @@ This is the six-week implementation map. Only the scaffold and three health endp
 | `server/src/routes/healthRoutes.js` | Existing | Three health endpoint routes |
 | `server/src/controllers/healthController.js` | Existing | Health request handlers |
 | `server/src/models/healthModel.js` | Existing | Health data |
-| `server/src/models/User.js` | Create | User, password hash and roles |
-| `server/src/controllers/authController.js` | Create | Register, login, logout/session actions |
-| `server/src/routes/authRoutes.js` | Create | Authentication endpoints |
-| `server/src/middleware/authMiddleware.js` | Create | Verify session/token and set user |
-| `server/src/middleware/roleMiddleware.js` | Create | Admin/owner authorization |
-| `server/src/middleware/errorHandler.js` | Create | Consistent API error responses |
-| `server/src/middleware/validateRequest.js` | Create | Shared request validation adapter |
+| `server/src/models/User.js` | Existing | User, password hash and roles |
+| `server/src/controllers/authController.js` | Existing | Register, login, logout/session actions |
+| `server/src/routes/authRoutes.js` | Existing | Authentication endpoints |
+| `server/src/middleware/authMiddleware.js` | Existing | Verify session/token and set user |
+| `server/src/middleware/roleMiddleware.js` | Existing | Admin/owner authorization |
+| `server/src/middleware/errorHandler.js` | Existing | Consistent API error responses |
+| `server/src/middleware/validateRequest.js` | Existing | Shared request validation adapter |
+| `server/src/models/Session.js` | Existing | Login sessions (bearer tokens) |
+| `server/test/auth.test.js` | Existing | Auth and access-control tests |
 | `client/src/models/authModel.js` | Create | Client auth state and API calls |
 | `client/src/controllers/useAuthController.js` | Create | Sign-in/sign-up behavior |
 | `client/src/views/auth/LoginPage.jsx` | Create | Login form/page |
@@ -80,8 +82,8 @@ This is the six-week implementation map. Only the scaffold and three health endp
 
 | Path | Status | Feature |
 |---|---|---|
-| `server/src/controllers/adminController.js` | Create | Dashboard summaries |
-| `server/src/routes/adminRoutes.js` | Create | Protected admin endpoints; use M1 role middleware |
+| `server/src/controllers/adminController.js` | Minimal version by M1 for access rules; extend | Dashboard summaries |
+| `server/src/routes/adminRoutes.js` | Minimal version by M1 for access rules; extend | Protected admin endpoints; use M1 role middleware |
 | `server/src/controllers/productController.js` | Create | Product create/read/update/archive |
 | `server/src/routes/productRoutes.js` | Create | Protected product-management routes |
 | `server/src/models/Product.js` | Create/own; align with M3 | Product, price, stock, image and tenant fields |
@@ -98,12 +100,12 @@ This is the six-week implementation map. Only the scaffold and three health endp
 | Path | Status | Feature |
 |---|---|---|
 | `server/src/models/Cart.js` | Create | Cart per user/session and tenant |
-| `server/src/models/Order.js` | Create | Order lines, totals, state and tenant/customer IDs |
+| `server/src/models/Order.js` | Minimal version by M1 for access rules; extend | Order lines, totals, state and tenant/customer IDs |
 | `server/src/models/Payment.js` | Create if separately persisted | Payment attempt/provider status |
 | `server/src/controllers/cartController.js` | Create | Cart read/add/update/remove |
 | `server/src/routes/cartRoutes.js` | Create | Cart endpoints |
-| `server/src/controllers/orderController.js` | Create | Checkout, history and detail |
-| `server/src/routes/orderRoutes.js` | Create | Checkout and order endpoints |
+| `server/src/controllers/orderController.js` | Minimal version by M1 for access rules; extend | Checkout, history and detail |
+| `server/src/routes/orderRoutes.js` | Minimal version by M1 for access rules; extend | Checkout and order endpoints |
 | `server/src/controllers/paymentController.js` | Create | Demo payment and verified callback handling |
 | `server/src/routes/paymentRoutes.js` | Create | Payment/webhook endpoints |
 | `client/src/models/cartModel.js` | Create | Cart state/API calls |
