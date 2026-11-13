@@ -1,91 +1,69 @@
-# API contract
+# API contract — Member 1 coordinates; endpoint owner is listed by module
 
-**Owners:** Shared; M1 maintains conventions, endpoint owners document their own APIs.
+All API responses use JSON. Shared errors have shape `{ "error": { "code": "...", "message": "...", "details": []? } }`. Authenticated routes use `Authorization: Bearer <token>`. Protected records derive the user ID from the authenticated session, never from query/body fields.
 
-Document each endpoint's method, path, authentication, tenant scope, request/response shape, errors, and owning member before integration.
+## Health (M1, public)
 
-## Conventions (M1)
+- `GET /api/health`
+- `GET /api/health/live`
+- `GET /api/health/ready`
 
-- **Authentication:** `POST /api/auth/login` returns a `token`. Send it as `Authorization: Bearer <token>`. Tokens expire after 8 hours and are revoked by logout.
-- **Roles:** `customer` (every sign-up) and `admin` (seeded from `ADMIN_EMAIL`/`ADMIN_PASSWORD` in `server/.env`). A `role` sent to register is ignored.
-- **Errors:** every error is `{ "error": { "code", "message", "details"? } }`.
+## Identity (M1)
 
-| Status | Meaning |
-|---|---|
-| 400 | Invalid JSON or failed validation (`details` lists the problems) |
-| 401 | Missing, invalid or expired token; wrong email or password |
-| 403 | Signed in, but the role is not allowed (customer on an admin route) |
-| 404 | Unknown route, or a record that is missing **or belongs to another user** |
-| 409 | Email already registered |
+- `POST /api/auth/register` — public; `{ name, email, password }`; returns `{ user, token }`.
+- `POST /api/auth/login` — public; `{ email, password }`; returns `{ user, token }`.
+- `POST /api/auth/logout` — authenticated; revokes current token.
+- `GET /api/auth/me` — authenticated; returns current public user.
 
-Data is held in memory until shared persistence is chosen, so users, sessions and orders reset when the server restarts.
+## Cart (M5; authenticated)
 
-## Guarding your own routes
+Every cart key is derived from the authenticated user and tenant. Send `x-tenant-id` to select the store (defaults to `default` in this demo); do not send a client-controlled session ID.
 
-```js
-import { authenticate } from '../middleware/authMiddleware.js';
-import { canAccessOwned, requireAdmin } from '../middleware/roleMiddleware.js';
+- `GET /api/cart`
+- `POST /api/cart/items` — `{ item: { productId, title, price, quantity, image } }`
+- `PATCH /api/cart/items/:productId` — `{ quantity }`
+- `DELETE /api/cart/items/:productId`
+- `DELETE /api/cart`
 
-router.use(authenticate);               // sets req.user = { id, name, email, role, createdAt }
-router.use(authenticate, requireAdmin); // admin-only router
+**Integration limitation:** the Product persistence/catalog API is not merged yet. Cart item prices are still demo inputs until M4's server Product model is connected. Do not treat checkout pricing as production-safe until then.
 
-// Owned records: answer 404, not 403, so IDs cannot be probed.
-if (!record || !canAccessOwned(req.user, record.customerId)) {
-  throw new HttpError(404, 'not_found', 'Not found');
-}
-```
+## Orders and checkout (M5; authenticated)
 
-Take the owner from `req.user.id`, never from the request body. Wrap async controllers in `asyncHandler` from `middleware/errorHandler.js`.
+All requests are tenant-scoped by `x-tenant-id`. Customers only see their own orders. Admin status changes require the admin role.
 
-## Health (M1) — public
+- `POST /api/orders/checkout` — `{ customer: { phone? }, shippingAddress: { street, city, ... }, paymentMethod, fromCart: true }`; buyer identity comes from the auth session.
+- `POST /api/orders` — direct line-item compatibility for the M1 auth demo; `{ items: [{ productId, quantity }] }`.
+- `GET /api/orders` — caller's orders. Admins may set `all=true` to list that tenant's orders.
+- `GET /api/orders/:orderId` — owner/admin within the selected tenant; other/missing IDs both return 404.
+- `PATCH /api/orders/:orderId/status` — admin only.
 
-- `GET /api/health`, `GET /api/health/live`, `GET /api/health/ready`
+## Demo payments (M5)
 
-## Auth (M1)
+- `POST /api/payments` — authenticated order owner; `{ orderId, method }`. Amount is read from the server-side order.
+- `POST /api/payments/:id/process` — authenticated order owner; optional `{ simulateSuccess }` for the demo.
+- `GET /api/payments/:id` — authenticated order owner.
+- `POST /api/payments/webhook` — HMAC verified using raw request bytes and `x-payment-signature`; configure `PAYMENT_WEBHOOK_SECRET`.
 
-| Method and path | Auth | Request body | Success |
-|---|---|---|---|
-| `POST /api/auth/register` | Public | `{ name, email, password }` (password 8–128 characters) | `201 { user, token }` |
-| `POST /api/auth/login` | Public | `{ email, password }` | `200 { user, token }` |
-| `POST /api/auth/logout` | Signed in | — | `204` |
-| `GET /api/auth/me` | Signed in | — | `200 { user }` |
+This is a local payment simulation, not a live payment provider integration. Payment model persistence and event replay records remain demo-only.
 
-## Orders (M5; minimal version by M1 for the access rules)
+## Rate limiting (M2)
 
-| Method and path | Auth | Notes | Success |
-|---|---|---|---|
-| `POST /api/orders` | Signed in | `{ items: [{ productId, quantity }] }`; the customer is always the caller | `201 { order }` |
-| `GET /api/orders` | Signed in | The caller's own orders only | `200 { orders }` |
-| `GET /api/orders/:orderId` | Owner or admin | Anyone else gets `404` | `200 { order }` |
+The API uses an atomic Redis Lua token bucket shared across Express instances. `GET /api/health*` remains exempt so health probes work during a Redis outage; other API paths fail closed with `503 rate_limit_unavailable` if Redis cannot enforce the limit.
 
-## Admin (M4; minimal version by M1 for the access rules)
+| Bucket | Scope | Capacity | Refill |
+|---|---|---:|---:|
+| Global | Client IP | 120 | 2 tokens/sec |
+| Tenant | `x-tenant-id` | 600 | 10 tokens/sec |
+| Login | Client IP and normalized account hash, independently | 10 | 1 token/30 sec |
+| Registration | Client IP | 20 | 1 token/15 sec |
+| Checkout | Client IP and authenticated user, independently | 10 / 8 | 1 token/15 sec / 1 token/30 sec |
 
-| Method and path | Auth | Success |
-|---|---|---|
-| `GET /api/admin/users` | Admin | `200 { users }` |
-| `GET /api/admin/orders` | Admin | `200 { orders }` |
+When a bucket is empty, the API returns HTTP `429` with `Retry-After`, `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`. The global IP key uses Express `req.ip`; configure `TRUST_PROXY_HOPS` only for the exact trusted reverse-proxy hop count. The tenant selector currently uses a validated `x-tenant-id` header because a server-side Store resolver is not implemented yet; M2's limiter scopes quota by this selector, and M5/M1 must replace it with server-resolved tenant identity when the Store model is available.
 
-Every path under `/api/admin` answers `401` without a token and `403` for a customer.
-
-## Demo: the two attacks
-
-Start the API with `ADMIN_EMAIL` and `ADMIN_PASSWORD` set in `server/.env`, then:
+## Run Redis locally
 
 ```sh
-API=http://localhost:5000/api
-register() { curl -s -X POST $API/auth/register -H 'Content-Type: application/json' \
-  -d "{\"name\":\"$1\",\"email\":\"$1@example.com\",\"password\":\"demo-password\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token'; }
-ALICE=$(register alice); EVE=$(register eve)
-
-# Alice places order 1.
-curl -s -X POST $API/orders -H "Authorization: Bearer $ALICE" -H 'Content-Type: application/json' \
-  -d '{"items":[{"productId":"sku-1","quantity":1}]}'
-
-# Attack 1 — Eve swaps in Alice's order ID: 404.
-curl -i $API/orders/1 -H "Authorization: Bearer $EVE"
-
-# Attack 2 — Eve, a customer, calls an admin route: 403.
-curl -i $API/admin/orders -H "Authorization: Bearer $EVE"
+docker compose up -d redis
 ```
 
-`npm test` runs the same attacks automatically (`server/test/auth.test.js`).
+Set `REDIS_URL` in `server/.env` if Redis is elsewhere. See `server/.env.example` for local settings.
