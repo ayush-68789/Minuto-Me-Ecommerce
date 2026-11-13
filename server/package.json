@@ -6,12 +6,18 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "attack": "node src/modules/inventory/attackTest.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "ioredis": "^6.0.0"
+    "ioredis": "^6.0.0",
+    "mongoose": "^8.24.9",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "axios": "^1.21.1"
   }
 }
