@@ -34,8 +34,11 @@ See [OWNERSHIP.md](../OWNERSHIP.md) for the complete member-by-member list of fe
 - `GET /api/health` — overall process health
 - `GET /api/health/live` — liveness
 - `GET /api/health/ready` — process-only readiness placeholder
+- `/api/auth` — register, login, logout, current user (M1)
+- `/api/orders` — minimal create/list/detail with owner-only access (M1 access rules; M5 owns checkout)
+- `/api/admin` — minimal admin-only lists (M1 access rules; M4 owns the dashboard)
 
-All other listed product features are planned.
+Users, sessions and orders are held in memory until shared persistence is chosen. All other listed product features are planned.
 
 ## Six-week sequence
 
