@@ -67,6 +67,16 @@ Take the owner from `req.user.id`, never from the request body. Wrap async contr
 
 Every path under `/api/admin` answers `401` without a token and `403` for a customer.
 
+## Store export (platform demo)
+
+| Method and path | Auth | Request | Success |
+|---|---|---|---|
+| `POST /api/store-builder/export` | Local demo endpoint; no user auth | Store Studio configuration JSON | `200` downloadable ZIP |
+
+This route is mounted before customer commerce rate limiting because it is a platform-side builder/export endpoint, not a generated store's commerce API. It packages a configured React storefront and a fixed whitelist of backend source files present in this checkout. It rejects invalid store slugs and does not package `.env` secrets. The ZIP is a demo starter; it does not provision a tenant, deploy a site, implement missing member modules, or enforce the selected plan. Keep this endpoint behind platform authentication and abuse controls before exposing it publicly.
+
+Generated backend current limits: in-memory records, no product CRUD/inventory protection, no payment or idempotency, and no tenant data isolation. A validated tenant selector is not equivalent to tenant isolation.
+
 ## Demo: the two attacks
 
 Start the API with `ADMIN_EMAIL` and `ADMIN_PASSWORD` set in `server/.env`, then:
