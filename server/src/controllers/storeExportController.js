@@ -1,19 +1,33 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import mongoose from 'mongoose';
 import { createZipArchive } from '../utils/zipArchive.js';
 import { HttpError } from '../middleware/errorHandler.js';
 
 const projectRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const bundledBackendFiles = [
-  'server.js', 'package.json', '.env.example',
-  'src/app.js',
-  'src/config/rateLimitConfig.js', 'src/config/redisClient.js',
-  'src/controllers/adminController.js', 'src/controllers/authController.js', 'src/controllers/healthController.js', 'src/controllers/orderController.js',
-  'src/middleware/authMiddleware.js', 'src/middleware/errorHandler.js', 'src/middleware/roleMiddleware.js', 'src/middleware/tenantContext.js', 'src/middleware/tokenBucketRateLimit.js', 'src/middleware/validateRequest.js',
-  'src/models/Order.js', 'src/models/Session.js', 'src/models/User.js', 'src/models/healthModel.js',
-  'src/routes/adminRoutes.js', 'src/routes/authRoutes.js', 'src/routes/healthRoutes.js', 'src/routes/orderRoutes.js',
-];
+async function bundledBackendFiles() {
+  const result = ['server.js', 'package.json'];
+  async function walk(directory, prefix = '') {
+    for (const entry of await readdir(path.join(projectRoot, 'server', directory), { withFileTypes: true })) {
+      const relative = path.posix.join(prefix, entry.name);
+      const local = path.join(directory, entry.name);
+      if (entry.isDirectory()) await walk(local, relative);
+      else if (entry.isFile() && entry.name.endsWith('.js') && !entry.name.endsWith('.test.js') &&
+        relative !== 'src/controllers/storeExportController.js' && relative !== 'src/routes/storeExportRoutes.js') result.push(relative);
+    }
+  }
+  await walk('src', 'src');
+  await walk('scripts', 'scripts');
+  return result;
+}
+
+const planFeatures = {
+  Free: { adminReports: false, inventory: false, attackDemo: false, checkout: false },
+  Basic: { adminReports: true, inventory: false, attackDemo: false, checkout: false },
+  Plus: { adminReports: true, inventory: true, attackDemo: false, checkout: false },
+  Pro: { adminReports: true, inventory: true, attackDemo: true, checkout: true },
+};
 
 function safeSlug(value) {
   const slug = String(value || '').trim().toLowerCase();
@@ -25,11 +39,15 @@ function normalizeStore(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'invalid_store', 'A store configuration is required');
   const slug = safeSlug(body.slug);
   const accent = /^#[0-9a-fA-F]{6}$/.test(body.accent) ? body.accent : '#516b54';
-  const products = Array.isArray(body.products) ? body.products.slice(0, 100).map((product, index) => ({
-    id: `product-${index + 1}`,
-    name: String(product?.name || '').slice(0, 100),
+  const plan = ['Free', 'Basic', 'Plus', 'Pro'].includes(body.plan) ? body.plan : 'Free';
+  const entitled = planFeatures[plan];
+  const features = Object.fromEntries(Object.entries(entitled).map(([key, enabled]) => [key, enabled && body.features?.[key] !== false]));
+  const products = Array.isArray(body.products) ? body.products.slice(0, 100).map((product) => ({
+    id: new mongoose.Types.ObjectId().toString(),
+    name: String(product?.name || '').trim().slice(0, 100),
     price: Math.max(0, Number(product?.price) || 0),
     description: String(product?.description || '').slice(0, 600),
+    category: String(body.category || 'Other').slice(0, 60),
     stock: Math.max(0, Math.floor(Number(product?.stock) || 0)),
     imageUrl: /^https?:\/\//i.test(String(product?.imageUrl || '')) ? String(product.imageUrl).slice(0, 1000) : '',
   })) : [];
@@ -38,10 +56,10 @@ function normalizeStore(body) {
     logoUrl: /^https?:\/\//i.test(String(body.logoUrl || '')) ? String(body.logoUrl).slice(0, 1000) : '',
     category: String(body.category || 'Other').slice(0, 40), contactEmail: String(body.contactEmail || '').slice(0, 254),
     headline: String(body.headline || '').slice(0, 180), description: String(body.description || '').slice(0, 1000),
-    accent, style: String(body.style || 'Natural').slice(0, 30), plan: ['Free', 'Basic', 'Plus', 'Pro'].includes(body.plan) ? body.plan : 'Free',
-    features: { auth: body.features?.auth !== false, orders: body.features?.orders !== false }, products,
-    generatedAt: new Date().toISOString(), backendCapabilities: ['health', 'auth-and-roles', 'owner-scoped-orders', 'admin-read-routes', 'redis-token-bucket-rate-limiting'],
-    knownLimitations: ['in-memory-storage', 'no-product-crud-or-inventory', 'no-payment-or-idempotency', 'no-full-tenant-data-isolation', 'plan-selection-is-metadata-only'],
+    accent, style: String(body.style || 'Natural').slice(0, 30), plan,
+    features: { auth: body.features?.auth !== false, orders: body.features?.orders !== false, ...features }, products,
+    generatedAt: new Date().toISOString(), backendCapabilities: ['health', 'auth-and-roles', 'owner-scoped-orders', 'product-crud', 'redis-token-bucket-rate-limiting', ...(features.adminReports ? ['admin-reports'] : []), ...(features.inventory ? ['atomic-inventory-reservations'] : []), ...(features.checkout ? ['idempotent-checkout', 'verified-payment-webhooks'] : []), ...(features.attackDemo ? ['concurrency-attack-demo'] : [])],
+    knownLimitations: ['demo-template-requires-local-configuration', 'full-tenant-provisioning-is-not-implemented', 'billing-and-plan-upgrade-enforcement-are-not-implemented'],
   };
 }
 
@@ -59,6 +77,15 @@ function generatedFrontendFiles(store, root) {
   ];
 }
 
+function generatedEnvironment(store) {
+  const yesNo = (enabled) => enabled ? 'true' : 'false';
+  return `NODE_ENV=development\nPORT=5000\nCLIENT_URL=http://localhost:5173\nTRUST_PROXY_HOPS=0\nREDIS_URL=redis://127.0.0.1:6379\nMONGODB_URI=mongodb://127.0.0.1:27017/${store.slug}?replicaSet=rs0\nINVENTORY_ENABLED=${yesNo(store.features.inventory)}\nRESERVATION_LIFECYCLE_ENABLED=${yesNo(store.features.inventory)}\nADMIN_REPORTS_ENABLED=${yesNo(store.features.adminReports)}\nCHECKOUT_ENABLED=${yesNo(store.features.checkout)}\nATTACK_DEMO_ENABLED=${yesNo(store.features.attackDemo)}\nRESERVATION_TTL_MINUTES=10\nRAZORPAY_KEY_ID=\nRAZORPAY_KEY_SECRET=\nRAZORPAY_WEBHOOK_SECRET=replace-with-a-random-secret\nADMIN_EMAIL=admin@example.test\nADMIN_PASSWORD=replace-before-use\n`;
+}
+
+function generatedCompose() {
+  return `services:\n  mongo:\n    image: mongo:7\n    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]\n    ports: ["27017:27017"]\n    volumes:\n      - mongo-data:/data/db\n    healthcheck:\n      test: ["CMD-SHELL", "mongosh --quiet --eval \\\"try { quit(rs.status().ok ? 0 : 1) } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}); quit(0) }\\\""]\n      interval: 5s\n      timeout: 5s\n      retries: 20\n  redis:\n    image: redis:7-alpine\n    command: ["redis-server", "--appendonly", "yes"]\n    ports: ["6379:6379"]\n    volumes:\n      - redis-data:/data\nvolumes:\n  mongo-data:\n  redis-data:\n`;
+}
+
 const storefrontTemplate = `import { useEffect, useState } from 'react';
 import store from './store-config.json';
 const apiBase = import.meta.env.VITE_API_BASE_URL || '';
@@ -72,7 +99,9 @@ export default function Storefront() {
   const [status, setStatus] = useState('Checking backend…');
   const [message, setMessage] = useState('');
   async function api(path, options = {}) {
-    const response = await fetch(apiBase + path, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers } });
+    const customerKey = 'commerceforge-customer-' + store.slug;
+    if (!localStorage.getItem(customerKey)) localStorage.setItem(customerKey, crypto.randomUUID());
+    const response = await fetch(apiBase + path, { ...options, headers: { 'Content-Type': 'application/json', 'x-tenant-id': store.slug, 'x-customer-id': localStorage.getItem(customerKey), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers } });
     const data = response.status === 204 ? null : await response.json();
     if (!response.ok) throw new Error(data?.error?.message || 'Request failed');
     return data;
@@ -92,8 +121,37 @@ export default function Storefront() {
     try { const data = await api('/api/orders'); setOrders(data.orders || []); setMessage('Order history loaded.'); }
     catch (error) { setMessage(error.message); }
   }
+  async function loadRazorpay() {
+    if (window.Razorpay) return;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Could not load the Razorpay checkout script'));
+      document.body.appendChild(script);
+    });
+  }
   async function placeDemoOrder(product) {
-    try { await api('/api/orders', { method: 'POST', body: JSON.stringify({ items: [{ productId: product.id, quantity: 1 }] }) }); setMessage('Demo order placed. The current backend stores order lines in memory.'); await loadOrders(); }
+    try {
+      if (store.features.checkout) {
+        const checkout = await api('/api/checkout', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ items: [{ productId: product.id, qty: 1 }] }) });
+        if (checkout.paymentMode === 'mock') {
+          setMessage('Checkout order created in mock mode. Add Razorpay test keys in backend/.env to open the payment form.');
+          return;
+        }
+        await loadRazorpay();
+        const widget = new window.Razorpay({ key: checkout.keyId, amount: checkout.amount, currency: checkout.currency, name: store.storeName, description: product.name, order_id: checkout.razorpayOrderId, handler: () => setMessage('Payment submitted. The signed provider webhook will confirm the order.'), modal: { ondismiss: () => setMessage('Payment was closed before completion.') } });
+        widget.on('payment.failed', (event) => setMessage(event.error?.description || 'Payment failed.'));
+        widget.open();
+      } else if (store.features.inventory) {
+        const result = await api('/api/inventory/' + product.id + '/reserve', { method: 'POST', body: JSON.stringify({ quantity: 1 }) });
+        setMessage('Stock reserved for checkout. Remaining stock: ' + result.data.remainingStock + '.');
+      } else {
+        await api('/api/orders', { method: 'POST', body: JSON.stringify({ items: [{ productId: product.id, quantity: 1, price: Number(product.price) }] }) });
+        setMessage('Demo order placed.');
+        await loadOrders();
+      }
+    }
     catch (error) { setMessage(error.message); }
   }
   async function signOut() {
@@ -104,9 +162,9 @@ export default function Storefront() {
     <div className="announcement">Thoughtful goods for everyday living · Free delivery on orders over $75</div>
     <header className="store-header"><a className="brand" href="#top">{store.logoUrl && <img className="brand-logo" src={store.logoUrl} alt=""/>}{store.storeName}</a><nav><a href="#collection">Shop</a>{store.features.orders && token && <button onClick={loadOrders}>My orders</button>}{store.features.auth && <a href="#account">Account</a>}</nav></header>
     <main id="top"><section className="hero"><div className="hero-copy"><p className="eyebrow">{store.category} · MADE WITH INTENTION</p><h1>{store.headline || 'A good thing for every day.'}</h1><p className="hero-description">{store.description}</p><a className="cta" href="#collection">Shop the collection <span>→</span></a></div><div className="hero-art"><div className="art-shape art-shape-one"></div><div className="art-shape art-shape-two"></div><span className="art-caption">THE EVERYDAY EDIT<br/>VOL. 01</span></div></section>
-      <section id="collection" className="collection"><div className="section-heading"><div><p className="eyebrow">CURATED FOR YOU</p><h2>The collection</h2></div><span>{store.products.length} pieces</span></div><div className="product-grid">{store.products.map((product, index) => <article className="product" key={product.id}><div className={'product-image tone-' + (index % 4)}>{product.imageUrl ? <img src={product.imageUrl} alt={product.name}/> : <span>{(product.name || 'P').slice(0, 1)}</span>}</div><div className="product-info"><div><h3>{product.name || 'New product'}</h3><p>{product.description}</p></div><strong>\${Number(product.price || 0).toFixed(2)}</strong></div>{store.features.orders && <button className="add-button" onClick={() => placeDemoOrder(product)}>Place demo order</button>}</article>)}</div></section>
+      <section id="collection" className="collection"><div className="section-heading"><div><p className="eyebrow">CURATED FOR YOU</p><h2>The collection</h2></div><span>{store.products.length} pieces</span></div><div className="product-grid">{store.products.map((product, index) => <article className="product" key={product.id}><div className={'product-image tone-' + (index % 4)}>{product.imageUrl ? <img src={product.imageUrl} alt={product.name}/> : <span>{(product.name || 'P').slice(0, 1)}</span>}</div><div className="product-info"><div><h3>{product.name || 'New product'}</h3><p>{product.description}</p></div><strong>\${Number(product.price || 0).toFixed(2)}</strong></div>{(store.features.orders || store.features.inventory || store.features.checkout) && <button className="add-button" onClick={() => placeDemoOrder(product)}>{store.features.checkout ? 'Checkout securely' : store.features.inventory ? 'Reserve item' : 'Place demo order'}</button>}</article>)}</div>{message && <p className="message" role="status">{message}</p>}</section>
       {store.features.auth && <section id="account" className="account"><div><p className="eyebrow">YOUR ACCOUNT</p><h2>{token ? 'Welcome back.' : 'Good to have you here.'}</h2><p>Sign in or create an account to use the demo commerce API.</p>{token ? <button className="cta" onClick={signOut}>Sign out</button> : <form className="account-form"><input placeholder="Your name (for registration)" value={name} onChange={e => setName(e.target.value)}/><input type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)}/><input type="password" placeholder="Password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)}/><div className="form-actions"><button className="cta" onClick={signIn}>Sign in</button><button className="outline-button" onClick={signUp}>Create account</button></div></form>}{message && <p className="message" role="status">{message}</p>}{orders.length > 0 && <div className="orders"><h3>Your orders</h3>{orders.map(order => <p key={order.id}>Order #{order.id} · {order.status} · {order.items.length} item(s)</p>)}</div>}</div><div className="account-note"><span className="note-mark">✓</span><h3>Built on a protected foundation.</h3><p>Authentication, order ownership checks and Redis-backed request protection are included in the backend starter.</p><span className="api-status">● {status}</span></div></section>}
-    </main><footer className="store-footer"><span>{store.storeName}</span><span>{store.contactEmail}</span><span>Powered by CommerceForge</span></footer>
+    </main><footer className="store-footer"><span>{store.storeName} · {store.plan} plan</span><span>{store.contactEmail}</span><span>Powered by CommerceForge</span></footer>
   </div>;
 }
 `;
@@ -127,7 +185,14 @@ function storefrontTheme(style) {
 }
 
 function rootReadme(store) {
-  return `# ${store.storeName}\n\nThis ZIP contains the configured storefront and the current CommerceForge demo backend.\n\n## Run the backend\n\n1. Install Node.js 20 or newer and Redis 7.\n2. In \`backend/\`, copy \`.env.example\` to \`.env\`. Set unique \`ADMIN_EMAIL\` and \`ADMIN_PASSWORD\` values.\n3. Start Redis, then run \`npm install\` and \`npm run dev\` in \`backend/\`. The API listens on port 5000.\n4. In a second terminal run \`npm install\` and \`npm run dev\` in \`frontend/\`. Open http://localhost:5173.\n\n## Included today\n\n- Health, liveness and readiness endpoints.\n- Registration, login, logout, role-based authorization.\n- In-memory orders with owner-scoped create/read endpoints.\n- Admin-only user/order read routes.\n- Redis token-bucket request limits and 429 responses.\n- A responsive configured storefront with the products and brand choices in \`store-config.json\`.\n\n## Demo boundaries\n\nThe backend stores records in memory, so they reset on restart. Product rows are storefront configuration only; there is no product API, inventory reservation, or stock enforcement. Payment processing and idempotent checkout are not included. The tenant header is validated for request context, but the current code does not provide tenant data isolation. The selected plan is configuration metadata only: billing, quotas and plan gating are not enforced. Do not deploy this demo as a production commerce service.\n`;
+  const included = [
+    'Product CRUD API (admin protected)', 'Redis-backed token-bucket rate limiting',
+    ...(store.features.adminReports ? ['Admin user and order reports'] : []),
+    ...(store.features.inventory ? ['Atomic inventory reservations and expiry (MongoDB replica set)'] : []),
+    ...(store.features.checkout ? ['Idempotent checkout and verified Razorpay webhooks'] : []),
+    ...(store.features.attackDemo ? ['Naive vs hardened concurrency attack demo'] : []),
+  ];
+  return `# ${store.storeName} · ${store.plan} plan\n\nThis ZIP contains the generated storefront and backend starter configured for the **${store.plan}** plan.\n\n## Start the backend\n\n1. Install Node.js 20 or newer and Docker Compose.\n2. From \`backend/\`, copy \`.env.example\` to \`.env\` and replace the admin credentials and webhook secret.\n3. Run \`docker compose up -d\` from \`backend/\` to start MongoDB (replica set) and Redis.\n4. Run \`npm install\` and \`npm run dev\` in \`backend/\`.\n\n## Start the storefront\n\nIn another terminal, run \`npm install\` and \`npm run dev\` from \`frontend/\`, then open http://localhost:5173.\n\n## Features enabled for this plan\n\n${included.map((feature) => `- ${feature}`).join('\n')}\n\nHealth checks, auth/roles, protected order basics, and product CRUD are included in every plan. The optional server modules are disabled by default when the selected plan does not include them. This is a local demo: full tenant provisioning, billing, and production payment credentials are not included.\n`;
 }
 
 export async function exportStore(req, res, next) {
@@ -139,18 +204,20 @@ export async function exportStore(req, res, next) {
       { path: `${root}/store-config.json`, content: JSON.stringify(store, null, 2) },
       ...generatedFrontendFiles(store, root),
     ];
-    const sourceEntries = await Promise.all(bundledBackendFiles.map(async (file) => {
+    const sourceEntries = await Promise.all((await bundledBackendFiles()).map(async (file) => {
       let content = await readFile(path.join(projectRoot, 'server', file));
       if (file === 'src/app.js') {
         content = content.toString('utf8')
           .replace(/^import storeExportRoutes.*\r?\n/m, '')
-          .replace(/^\/\/ Platform store configuration\/export[^\r\n]*\r?\napp\.use\('\/api\/store-builder', storeExportRoutes\);\r?\n/m, '');
+          .replace(/^app\.use\('\/api\/store-builder', storeExportRoutes\);\r?\n/m, '');
       }
       return { path: `${root}/backend/${file}`, content };
     }));
     entries.push(...sourceEntries);
-    entries.push({ path: `${root}/backend/compose.yaml`, content: await readFile(path.join(projectRoot, 'compose.yaml')) });
-    entries.push({ path: `${root}/backend/README.md`, content: 'See the project README for run instructions and demo limitations. This backend is the current shared CommerceForge prototype.\n' });
+    entries.push({ path: `${root}/backend/.env.example`, content: generatedEnvironment(store) });
+    entries.push({ path: `${root}/backend/config/store-config.json`, content: JSON.stringify(store, null, 2) });
+    entries.push({ path: `${root}/backend/compose.yaml`, content: generatedCompose() });
+    entries.push({ path: `${root}/backend/README.md`, content: rootReadme(store) });
     const archive = createZipArchive(entries);
     res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${store.slug}.zip"`, 'Content-Length': archive.length });
     return res.status(200).send(archive);
