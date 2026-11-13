@@ -5,31 +5,36 @@ import userModel, { ROLES } from './src/models/User.js';
 import Product from './src/models/Product.js';
 import Reservation from './src/models/Reservation.js';
 import { startReservationSweeper } from './src/modules/inventory/reservationSweeper.js';
+import Order from './src/models/orderModel.js';
+import Payment from './src/models/paymentModel.js';
+import IdempotencyKey from './src/models/idempotencyModel.js';
+import WebhookEvent from './src/models/webhookEventModel.js';
 
 const port = Number(process.env.PORT || 5000);
+const isEnabled = (name, defaultValue = true) => process.env[name] === undefined ? defaultValue : process.env[name] === 'true';
 
-// The Store Studio/export route can run without MongoDB. Inventory APIs remain
-// disabled until a replica set is available because reservations use transactions.
-async function connectInventoryDatabase() {
-  const uri = process.env.MONGODB_URI;
+async function initializeDatabase() {
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
   if (!uri) {
-    console.warn('MONGODB_URI not set; inventory endpoints are unavailable.');
+    console.warn('MONGODB_URI not set; product, inventory and checkout persistence APIs will return 503.');
     return false;
   }
-
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
-    await Promise.all([Product.init(), Reservation.init()]);
-    const info = await mongoose.connection.db.admin().command({ hello: 1 });
-    if (!info.setName && info.msg !== 'isdbgrid') {
-      console.warn('Inventory reservations require MongoDB replica-set transactions.');
-      return false;
+    await Promise.all([Product.init(), ...(isEnabled('INVENTORY_ENABLED') ? [Reservation.init()] : [])]);
+    if (isEnabled('CHECKOUT_ENABLED', false)) {
+      await Promise.all([Order.init(), Payment.init(), IdempotencyKey.init(), WebhookEvent.init()]);
     }
-    console.log('MongoDB replica set connected for inventory.');
-    if (process.env.SWEEPER_ENABLED !== 'false') startReservationSweeper();
+    const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+    if (!hello.setName && hello.msg !== 'isdbgrid') {
+      console.warn('MongoDB is standalone. Inventory transactions require a replica set; product CRUD can still run.');
+    } else {
+      console.log('MongoDB replica set connected.');
+    }
+    if (isEnabled('INVENTORY_ENABLED') && isEnabled('RESERVATION_LIFECYCLE_ENABLED')) startReservationSweeper();
     return true;
   } catch (error) {
-    console.error('Inventory database unavailable; Store Studio will remain available:', error.message);
+    console.error('MongoDB is unavailable; Store Studio will remain available:', error.message);
     return false;
   }
 }
@@ -40,10 +45,9 @@ async function start() {
     await userModel.create({ name: 'Admin', email: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: ROLES.ADMIN });
     console.log(`Admin account ready: ${ADMIN_EMAIL}`);
   } else {
-    console.warn('ADMIN_EMAIL/ADMIN_PASSWORD not set; admin routes will have no seeded admin.');
+    console.warn('ADMIN_EMAIL/ADMIN_PASSWORD not set; admin routes have no seeded admin.');
   }
-
-  await connectInventoryDatabase();
+  await initializeDatabase();
   app.listen(port, () => console.log(`Minuto Me API listening on port ${port}`));
 }
 

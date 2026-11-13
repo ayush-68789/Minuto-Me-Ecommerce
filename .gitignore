@@ -2,6 +2,7 @@ node_modules/
 client/dist/
 server/.env
 client/.env
+.env
 coverage/
 .DS_Store
 Thumbs.db

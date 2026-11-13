@@ -51,22 +51,22 @@ function parseId(id) {
   return id;
 }
 
-export async function listProducts(_req, res) {
+export async function listProducts(req, res) {
   requireDatabase();
-  const products = await Product.find().sort({ createdAt: -1 }).lean();
+  const products = await Product.find({ tenantId: req.tenantId || 'default' }).sort({ createdAt: -1 }).lean();
   return res.status(200).json({ products });
 }
 
 export async function getProduct(req, res) {
   requireDatabase();
-  const product = await Product.findById(parseId(req.params.productId)).lean();
+  const product = await Product.findOne({ _id: parseId(req.params.productId), tenantId: req.tenantId || 'default' }).lean();
   if (!product) throw new HttpError(404, 'product_not_found', 'Product not found');
   return res.status(200).json({ product });
 }
 
 export async function createProduct(req, res) {
   requireDatabase();
-  const product = await Product.create(parseProduct(req.body));
+  const product = await Product.create({ ...parseProduct(req.body), tenantId: req.tenantId || 'default' });
   return res.status(201).json({ product });
 }
 
@@ -75,10 +75,10 @@ export async function updateProduct(req, res) {
   const productId = parseId(req.params.productId);
   const changes = parseProduct(req.body, { partial: true });
   if (Object.hasOwn(changes, 'stock')) {
-    const activeReservations = await Reservation.countDocuments({ productId, status: RESERVATION_STATUS.RESERVED });
+    const activeReservations = await Reservation.countDocuments({ productId, tenantId: req.tenantId || 'default', status: RESERVATION_STATUS.RESERVED });
     if (activeReservations) throw new HttpError(409, 'active_reservations', 'Stock cannot be edited while reservations are active');
   }
-  const product = await Product.findByIdAndUpdate(productId, { $set: changes }, { new: true, runValidators: true });
+  const product = await Product.findOneAndUpdate({ _id: productId, tenantId: req.tenantId || 'default' }, { $set: changes }, { new: true, runValidators: true });
   if (!product) throw new HttpError(404, 'product_not_found', 'Product not found');
   return res.status(200).json({ product });
 }
@@ -86,9 +86,9 @@ export async function updateProduct(req, res) {
 export async function deleteProduct(req, res) {
   requireDatabase();
   const productId = parseId(req.params.productId);
-  const activeReservations = await Reservation.countDocuments({ productId, status: RESERVATION_STATUS.RESERVED });
+  const activeReservations = await Reservation.countDocuments({ productId, tenantId: req.tenantId || 'default', status: RESERVATION_STATUS.RESERVED });
   if (activeReservations) throw new HttpError(409, 'active_reservations', 'Product cannot be deleted while reservations are active');
-  const product = await Product.findByIdAndDelete(productId).lean();
+  const product = await Product.findOneAndDelete({ _id: productId, tenantId: req.tenantId || 'default' }).lean();
   if (!product) throw new HttpError(404, 'product_not_found', 'Product not found');
   return res.status(200).json({ deleted: true, productId: String(product._id) });
 }

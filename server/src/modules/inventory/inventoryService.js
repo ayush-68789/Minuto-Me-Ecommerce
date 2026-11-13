@@ -46,12 +46,19 @@ function productFilter(productId, tenantId) {
   return filter;
 }
 
+function validateTenantId(tenantId) {
+  if (tenantId && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(String(tenantId))) {
+    throw new InventoryError(400, 'INVALID_ID', 'tenantId is not valid.');
+  }
+  return tenantId;
+}
+
 // ---------------------------------------------------------------------------
 // Read stock (plain read, only for display - never used to decide a purchase)
 // ---------------------------------------------------------------------------
 export async function getStock({ productId, tenantId }) {
   validateObjectId(productId, 'productId');
-  if (tenantId) validateObjectId(tenantId, 'tenantId');
+  validateTenantId(tenantId);
 
   const product = await Product.findOne(productFilter(productId, tenantId)).select('name stock').lean();
   if (!product) {
@@ -67,7 +74,7 @@ export async function reserveStock({ productId, quantity, customerId, tenantId }
   // 1. Validate everything before touching the database.
   validateObjectId(productId, 'productId');
   validateQuantity(quantity);
-  if (tenantId) validateObjectId(tenantId, 'tenantId');
+  validateTenantId(tenantId);
 
   const expiresAt = new Date(Date.now() + getReservationTtlMs());
 
@@ -121,7 +128,7 @@ export async function reserveStock({ productId, quantity, customerId, tenantId }
 // It is safe to call twice - the second call is rejected with 409 and does nothing.
 export async function confirmReservation({ reservationId, customerId, tenantId }) {
   validateObjectId(reservationId, 'reservationId');
-  if (tenantId) validateObjectId(tenantId, 'tenantId');
+  validateTenantId(tenantId);
 
   const now = new Date();
 
@@ -161,6 +168,68 @@ export async function confirmReservation({ reservationId, customerId, tenantId }
   }
   // status expired, OR still "reserved" but the time has passed (sweeper has not run yet)
   throw new InventoryError(409, 'RESERVATION_EXPIRED', 'Reservation has expired.');
+}
+
+// Confirm every stock hold for one checkout atomically. Payment capture must not
+// confirm only part of a multi-product order.
+export async function confirmReservations({ reservationIds, customerId, tenantId }) {
+  const ids = [...new Set(reservationIds || [])];
+  if (!ids.length) return [];
+  for (const id of ids) validateObjectId(id, 'reservationId');
+  validateTenantId(tenantId);
+  const now = new Date();
+  return runInTransaction(async (session) => {
+    const confirmed = [];
+    for (const reservationId of ids) {
+      const filter = { _id: reservationId, status: RESERVATION_STATUS.RESERVED, expiresAt: { $gt: now } };
+      if (customerId) filter.customerId = customerId;
+      if (tenantId) filter.tenantId = tenantId;
+      const reservation = await Reservation.findOneAndUpdate(
+        filter,
+        { $set: { status: RESERVATION_STATUS.CONFIRMED, confirmedAt: now } },
+        { new: true, session },
+      );
+      if (!reservation) throw new InventoryError(409, 'RESERVATION_UNAVAILABLE', 'One or more stock reservations have expired or changed state.');
+      confirmed.push(reservation);
+    }
+    return confirmed;
+  });
+}
+
+// Release a set of holds after a failed payment. The conditional state change
+// and stock restoration share one transaction so duplicate events cannot restock twice.
+export async function releaseReservations({ reservationIds, customerId, tenantId }) {
+  const ids = [...new Set(reservationIds || [])];
+  if (!ids.length) return [];
+  for (const id of ids) validateObjectId(id, 'reservationId');
+  validateTenantId(tenantId);
+  const now = new Date();
+  return runInTransaction(async (session) => {
+    const released = [];
+    for (const reservationId of ids) {
+      const filter = { _id: reservationId, status: RESERVATION_STATUS.RESERVED };
+      if (customerId) filter.customerId = customerId;
+      if (tenantId) filter.tenantId = tenantId;
+      const reservation = await Reservation.findOneAndUpdate(
+        filter,
+        { $set: { status: RESERVATION_STATUS.EXPIRED, expiredAt: now } },
+        { new: true, session },
+      );
+      if (!reservation) {
+        const existing = await Reservation.findById(reservationId).session(session).lean();
+        if (existing?.status === RESERVATION_STATUS.EXPIRED) continue;
+        throw new InventoryError(409, 'RESERVATION_UNAVAILABLE', 'A confirmed or unavailable reservation cannot be released.');
+      }
+      const restored = await Product.updateOne(
+        productFilter(reservation.productId, tenantId),
+        { $inc: { stock: reservation.quantity } },
+        { session },
+      );
+      if (restored.matchedCount !== 1) throw new Error(`Could not restore stock for reservation ${reservationId}`);
+      released.push(reservation);
+    }
+    return released;
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -17,10 +17,7 @@ function getRequestContext(req) {
   }
 
   const customerId = userId ? String(userId) : isProduction ? undefined : req.get('x-customer-id') || undefined;
-  const requestedTenant = req.tenantId ? String(req.tenantId) : req.get('x-tenant-id') || undefined;
-  // The current Product schema uses Mongo ObjectIds for tenantId. Ignore the
-  // default slug until tenant records are integrated instead of passing a bad cast.
-  const tenantId = requestedTenant && /^[0-9a-fA-F]{24}$/.test(requestedTenant) ? requestedTenant : undefined;
+  const tenantId = req.tenantId ? String(req.tenantId) : req.get('x-tenant-id') || undefined;
 
   return { customerId, tenantId };
 }

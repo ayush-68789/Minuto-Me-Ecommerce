@@ -17,7 +17,7 @@ const productSchema = new mongoose.Schema(
     imageUrl: { type: String, default: '' },
     // Units available to buy. The inventory module changes this ONLY with atomic $inc.
     stock: { type: Number, required: true, min: 0, default: 0 },
-    tenantId: { type: mongoose.Schema.Types.ObjectId, index: true },
+    tenantId: { type: String, index: true },
   },
   { timestamps: true }
 );
