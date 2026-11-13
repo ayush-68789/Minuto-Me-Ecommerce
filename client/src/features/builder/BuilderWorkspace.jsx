@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { useBuilder } from '../../shared/context/BuilderContext.jsx';
 import { exportStoreZip } from '../../shared/api/storeExport.js';
+import { getPlan, plans, planFeatureRows } from './planCatalog.js';
 const PreviewPane = lazy(() => import('./components/PreviewPane.jsx'));
 
 const steps = [
@@ -13,19 +14,18 @@ const steps = [
 ];
 
 const categories = ['Clothing', 'Electronics', 'Stationery', 'Groceries', 'Beauty', 'Furniture', 'Home goods', 'Other'];
-const plans = [
-  { name: 'Free', price: 'No charge', line: 'Start with the essentials', featured: false },
-  { name: 'Basic', price: 'Demo tier', line: 'A little more room to grow', featured: false },
-  { name: 'Plus', price: 'Demo tier', line: 'For a growing catalog', featured: true },
-  { name: 'Pro', price: 'Demo tier', line: 'Everything in this demo', featured: false },
-];
 const implemented = [
   { id: 'auth', title: 'Customer accounts', copy: 'Register, sign in and keep a session.' },
   { id: 'orders', title: 'Order basics', copy: 'Create orders and view your own order history.' },
+  { id: 'adminReports', title: 'Admin user/order reports', copy: 'Admin-only list APIs; unlocked in Basic and above.' },
+  { id: 'inventory', title: 'Concurrency-safe inventory', copy: 'Atomic stock reservations, confirmation and expiry; unlocked in Plus and Pro.' },
+  { id: 'checkout', title: 'Idempotent checkout and payments', copy: 'Payment-order creation, replay-safe checkout, and verified webhooks; unlocked in Pro.' },
+  { id: 'attackDemo', title: 'Naive vs hardened demo', copy: 'Development-only concurrency attack comparison; unlocked in Pro.' },
 ];
 const backendIncluded = [
   'Health and readiness endpoints',
-  'Role checks and protected admin read APIs',
+  'Authentication, role checks and protected order APIs',
+  'Admin-protected product CRUD (Free and above)',
   'Redis-backed IP, account, tenant and checkout rate limiting',
 ];
 
@@ -69,31 +69,30 @@ function Design() {
 
 function Features() {
   const { store, setFeature } = useBuilder();
-  const unavailable = ['Product CRUD', 'Inventory and oversell protection', 'Payments and idempotent checkout', 'Full tenant data isolation'];
+  const availableForPlan = getPlan(store.plan).features;
+  const unavailable = ['Full tenant data isolation'];
   return <><StepHeading eyebrow="Step 05 · Storefront options" title="Turn features on or off." copy="These choices control the sections and API actions exposed in the generated storefront. Backend security foundations stay included." />
-    <div className="space-y-3">{implemented.map((feature) => <label key={feature.id} className="flex cursor-pointer items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300"><input className="mt-1 h-4 w-4 accent-[#516b54]" type="checkbox" checked={Boolean(store.features[feature.id])} onChange={(event) => setFeature(feature.id, event.target.checked)} /><span><span className="block text-sm font-semibold text-slate-800">{feature.title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{feature.copy}</span></span><span className="ml-auto rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Available</span></label>)}</div>
+    <div className="space-y-3">{implemented.map((feature) => { const tierLocked = Object.hasOwn(availableForPlan, feature.id) && !availableForPlan[feature.id]; return <label key={feature.id} className={`flex items-start gap-4 rounded-2xl border p-5 ${tierLocked ? 'cursor-not-allowed border-slate-100 bg-slate-50' : 'cursor-pointer border-slate-200 bg-white hover:border-slate-300'}`}><input className="mt-1 h-4 w-4 accent-[#516b54]" type="checkbox" checked={Boolean(store.features[feature.id])} disabled={tierLocked} onChange={(event) => setFeature(feature.id, event.target.checked)} /><span><span className="block text-sm font-semibold text-slate-800">{feature.title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{feature.copy}</span></span><span className={`ml-auto whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${tierLocked ? 'bg-slate-100 text-slate-400' : 'bg-emerald-50 text-emerald-700'}`}>{tierLocked ? 'Locked by plan' : 'Available'}</span></label>; })}</div>
     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-[.15em] text-slate-400">Unavailable until backend modules are added</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{unavailable.map((feature) => <label key={feature} className="flex items-center gap-3 text-xs text-slate-400"><input type="checkbox" disabled className="h-4 w-4 accent-slate-300" />{feature}<span className="ml-auto text-[9px] font-bold uppercase tracking-wide">Later</span></label>)}</div></div>
     <div className="mt-4 rounded-2xl bg-[#eef1eb] p-5"><p className="text-xs font-bold uppercase tracking-[.15em] text-[#516b54]">Always included in every plan</p><ul className="mt-3 space-y-2">{backendIncluded.map((item) => <li key={item} className="flex gap-2 text-sm text-slate-700"><span className="text-[#516b54]">✓</span>{item}</li>)}</ul></div>
   </>;
 }
 
 function Plan() {
-  const { store, update } = useBuilder();
-  const included = ['Responsive storefront and live preview', 'Configured product catalog in ZIP', 'Health and readiness API', 'Authentication and role checks', 'Owner-scoped order create/read APIs', 'Admin-only user/order read APIs', 'Redis-backed token bucket protection'];
-  const unavailable = ['Product CRUD and inventory protection', 'Payments and idempotent checkout', 'Full tenant data isolation'];
+  const { store, setPlan } = useBuilder();
   return <><StepHeading eyebrow="Step 04 · Compare plans" title="Choose the right starting plan." copy="Compare the capabilities that will be included in the exported demo package." />
-    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="min-w-[690px] w-full border-collapse text-left text-xs"><thead><tr className="bg-[#f7f8f5]"><th className="w-[34%] px-4 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Included capability</th>{plans.map((plan) => <th key={plan.name} className={`px-3 py-4 text-center ${store.plan === plan.name ? 'bg-[#edf2eb]' : ''}`}><button className="w-full rounded-xl px-2 py-1.5 text-center" onClick={() => update('plan', plan.name)} aria-pressed={store.plan === plan.name}><span className="block text-sm font-bold text-slate-800">{plan.name}</span><span className="mt-1 block text-sm font-semibold text-[#516b54]">{plan.price}<span className="text-[9px] font-normal text-slate-400"> / demo</span></span>{store.plan === plan.name && <span className="mt-2 block text-[9px] font-bold uppercase tracking-wide text-[#516b54]">Selected</span>}</button></th>)}</tr></thead><tbody>{included.map((feature) => <tr className="border-t border-slate-100" key={feature}><td className="px-4 py-3.5 font-medium text-slate-700">{feature}</td>{plans.map((plan) => <td className={`px-3 py-3.5 text-center ${store.plan === plan.name ? 'bg-[#f7faf6]' : ''}`} key={plan.name}><span className="inline-grid h-6 w-6 place-items-center rounded-full bg-emerald-50 font-bold text-emerald-700" aria-label={`Included in ${plan.name}`}>✓</span></td>)}</tr>)}{unavailable.map((feature) => <tr className="border-t border-slate-100 bg-slate-50/70" key={feature}><td className="px-4 py-3.5 font-medium text-slate-500">{feature}<span className="ml-2 text-[9px] font-bold uppercase tracking-wide text-slate-400">Unavailable</span></td>{plans.map((plan) => <td className={`px-3 py-3.5 text-center text-slate-300 ${store.plan === plan.name ? 'bg-[#f7faf6]' : ''}`} key={plan.name}>—</td>)}</tr>)}</tbody></table></div>
-    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">All tiers include the same backend modules implemented today. Plan prices, quotas, billing and plan-based feature gating are not active; your choice is stored as configuration metadata.</div>
+    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="min-w-[760px] w-full border-collapse text-left text-xs"><thead><tr className="bg-[#f7f8f5]"><th className="w-[34%] px-4 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Included capability</th>{plans.map((plan) => <th key={plan.name} className={`px-3 py-4 text-center ${store.plan === plan.name ? 'bg-[#edf2eb]' : ''}`}><button className="w-full rounded-xl px-2 py-1.5 text-center" onClick={() => setPlan(plan.name)} aria-pressed={store.plan === plan.name}><span className="block text-sm font-bold text-slate-800">{plan.name}</span><span className="mt-1 block text-[10px] font-medium text-[#516b54]">{plan.price}</span><span className="mt-1 block text-[9px] leading-4 text-slate-400">{plan.line}</span>{store.plan === plan.name && <span className="mt-2 block text-[9px] font-bold uppercase tracking-wide text-[#516b54]">Selected</span>}</button></th>)}</tr></thead><tbody>{planFeatureRows.map((feature) => <tr className={`border-t border-slate-100 ${feature.availability.unavailable ? 'bg-slate-50/70' : ''}`} key={feature.label}><td className="px-4 py-3.5 font-medium text-slate-700">{feature.label}{feature.availability.unavailable && <span className="ml-2 text-[9px] font-bold uppercase tracking-wide text-slate-400">Not implemented</span>}</td>{plans.map((plan) => <td className={`px-3 py-3.5 text-center ${store.plan === plan.name ? 'bg-[#f7faf6]' : ''}`} key={plan.name}>{feature.availability[plan.name] ? <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-emerald-50 font-bold text-emerald-700" aria-label={`Included in ${plan.name}`}>✓</span> : <span className="text-slate-300">—</span>}</td>)}</tr>)}</tbody></table></div>
+    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">Free includes the product CRUD API. Basic adds admin reports, Plus enables concurrency-safe inventory, and Pro adds idempotent payment checkout and the attack demo. Tier pricing/quotas are demo labels; billing is not active. Full tenant data isolation is still unavailable.</div>
   </>;
 }
 
 function Review() {
   const { store } = useBuilder();
-  const selectedFeatures = [store.features.auth && 'Customer accounts', store.features.orders && 'Order basics'].filter(Boolean);
+  const selectedFeatures = [store.features.auth && 'Customer accounts', store.features.orders && 'Order basics', store.features.adminReports && 'Admin reports', store.features.inventory && 'Concurrency inventory', store.features.checkout && 'Idempotent payments', store.features.attackDemo && 'Concurrency attack demo'].filter(Boolean);
   return <><StepHeading eyebrow="Step 06 · Ready to export" title="Your store is taking shape." copy="Review your plan, storefront options, products, and included backend before downloading the ZIP." />
     <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xl font-semibold text-slate-900">{store.storeName || 'Your new store'}</p><p className="mt-1 text-sm text-slate-500">{store.category} · {store.plan} demo tier</p></div><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">Ready to package</span></div><div className="my-5 h-px bg-slate-100" /><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Storefront</p><p className="mt-2 text-sm">Brand details, theme, {store.products.length} catalog item(s)</p></div><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Backend source</p><p className="mt-2 text-sm">Auth, protected orders, admin read routes, health, Redis rate limiting</p></div></div></div>
     <div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Selected storefront features</p><div className="mt-3 flex flex-wrap gap-2">{selectedFeatures.length ? selectedFeatures.map((feature) => <span key={feature} className="rounded-full bg-[#edf2eb] px-3 py-1.5 text-xs font-medium text-[#405a43]">{feature}</span>) : <span className="text-xs text-slate-400">No optional storefront features selected</span>}</div></div><div className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Products in storefront</p><ul className="mt-3 space-y-2">{store.products.map((product) => <li key={product.id} className="flex justify-between gap-3 text-xs"><span className="truncate">{product.name || 'Untitled product'}</span><span className="shrink-0 text-slate-500">${Number(product.price || 0).toFixed(2)}</span></li>)}</ul></div></div>
-    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm font-semibold">Not included in this demo</p><p className="mt-2 text-xs leading-5 text-slate-500">Inventory and oversell protection, payment/idempotency, product CRUD, durable database storage, full tenant isolation, and production deployment. These will appear here only after the corresponding backend modules are integrated.</p></div>
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5"><p className="text-sm font-semibold">Current demo boundaries</p><p className="mt-2 text-xs leading-5 text-slate-500">Records use the database/in-memory models shown in this export. Full tenant data isolation, production deployment and production payment credentials are not provided by this demo.</p></div>
   </>;
 }
 

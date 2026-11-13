@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { getPlan } from '../../features/builder/planCatalog.js';
 
 const BuilderContext = createContext(null);
 const starterProducts = [
@@ -10,13 +11,17 @@ const defaults = {
   headline: 'Everyday goods, thoughtfully made.', description: 'A small collection of useful things, made to make every day feel a little better.',
   accent: '#516b54', style: 'Natural', plan: 'Free',
   products: starterProducts,
-  features: { auth: true, orders: true },
+  features: { auth: true, orders: true, adminReports: false, inventory: false, attackDemo: false, checkout: false },
 };
 
 function loadInitialState() {
   try {
     const saved = JSON.parse(localStorage.getItem('commerceforge-builder') || 'null');
-    return saved ? { ...defaults, ...saved, products: Array.isArray(saved.products) ? saved.products : starterProducts } : defaults;
+    if (!saved) return defaults;
+    const plan = getPlan(saved.plan);
+    const features = { ...defaults.features, ...saved.features };
+    for (const key of ['adminReports', 'inventory', 'attackDemo', 'checkout']) features[key] = Boolean(plan.features[key] && features[key]);
+    return { ...defaults, ...saved, plan: plan.name, features, products: Array.isArray(saved.products) ? saved.products : starterProducts };
   } catch { return defaults; }
 }
 
@@ -24,6 +29,18 @@ export function BuilderProvider({ children }) {
   const [store, setStore] = useState(loadInitialState);
   const update = useCallback((key, value) => setStore((current) => {
     const next = { ...current, [key]: value };
+    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    return next;
+  }), []);
+  const setPlan = useCallback((planName) => setStore((current) => {
+    const previousPlan = getPlan(current.plan);
+    const nextPlan = getPlan(planName);
+    const features = { ...current.features };
+    for (const key of ['adminReports', 'inventory', 'attackDemo', 'checkout']) {
+      if (!nextPlan.features[key]) features[key] = false;
+      else if (!previousPlan.features[key]) features[key] = true;
+    }
+    const next = { ...current, plan: nextPlan.name, features };
     try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
     return next;
   }), []);
@@ -43,6 +60,7 @@ export function BuilderProvider({ children }) {
     return next;
   }), []);
   const setFeature = useCallback((key, value) => setStore((current) => {
+    if (value && ['adminReports', 'inventory', 'attackDemo', 'checkout'].includes(key) && !getPlan(current.plan).features[key]) return current;
     let features = { ...current.features, [key]: value };
     if (key === 'auth' && !value) features.orders = false;
     if (key === 'orders' && value) features.auth = true;
@@ -50,7 +68,7 @@ export function BuilderProvider({ children }) {
     try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
     return next;
   }), []);
-  const value = useMemo(() => ({ store, update, updateProduct, addProduct, removeProduct, setFeature }), [store, update, updateProduct, addProduct, removeProduct, setFeature]);
+  const value = useMemo(() => ({ store, update, setPlan, updateProduct, addProduct, removeProduct, setFeature }), [store, update, setPlan, updateProduct, addProduct, removeProduct, setFeature]);
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
 
