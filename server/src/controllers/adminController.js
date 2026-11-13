@@ -7,6 +7,6 @@ export function listUsers(_req, res) {
   res.status(200).json({ users: userModel.list().map(userModel.toPublic) });
 }
 
-export function listAllOrders(_req, res) {
-  res.status(200).json({ orders: orderModel.list() });
+export function listAllOrders(req, res) {
+  res.status(200).json({ orders: orderModel.list({ tenantId: req.tenantId || 'default' }) });
 }

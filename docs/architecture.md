@@ -1,21 +1,52 @@
-# Architecture
+# Architecture — MVC API and React client
 
-## Product flow
+**Owners:** Shared. M1 coordinates API conventions; each member implements their assigned feature in the same MVC layers.
 
-The React Store Studio collects structured store details, product content, a theme, selected storefront entry points, and a demo plan. It keeps a local draft, renders a live storefront preview, and requests a ZIP from `POST /api/store-builder/export`.
+## Backend
 
-The ZIP contains the configured React storefront plus a source snapshot of the currently implemented Express modules. It does not create a production tenant or deploy a store. Its backend currently uses in-memory data. The export endpoint is a local demo tool mounted before the customer commerce rate-limiting middleware.
+```text
+server/src/
+├── app.js                  # M1: Express composition
+├── routes/                 # HTTP path/method to controller mapping
+├── controllers/            # Request handling and JSON responses
+├── models/                 # Application data and persistence
+└── middleware/             # M1: shared auth, validation and error handling
+```
 
-## Server
-
-The Express app in `server/src/app.js` uses MVC: routes validate and dispatch, controllers handle request logic, models own persistence, and middleware provides authentication, tenant context, rate limiting and common errors. ES modules are used throughout.
-
-Current exported modules include health, auth and roles, protected order basics, admin read routes, and Redis token-bucket rate limiting. Product CRUD/inventory concurrency, payment/idempotency, persistent database storage and tenant data isolation are not implemented in this checkout.
+This is a JSON API, so controllers return JSON directly; server-side HTML views are not used. There is no service layer. The health API already follows this structure. M1 owns identity/auth; M2 owns Redis rate limiting; M3 owns storefront/catalog reads; M4 owns admin/product management and the Product schema with M3 input; M5 owns cart, checkout, orders, payments and tenant-scoped commerce behavior.
 
 ## Client
 
-The frontend is a feature-based React application, not MVC. `src/app` composes the shell, `src/features/builder` contains the onboarding and preview workflow, and `src/shared` contains builder state and ZIP API access. The entry point is `src/main.jsx`; the builder is lazy-loaded.
+```text
+client/src/
+├── main.jsx                # M2: React entry
+├── models/                 # Client data and API calls
+├── controllers/             # React hooks and user actions
+└── views/                   # React pages and visual components
+```
 
-## Plans and feature availability
+Client views remain because React needs presentation components. Ownership: M1 auth, M2 rate-limit feedback/API handling, M3 storefront, M4 admin, M5 cart/orders. M2 coordinates the shared app shell.
 
-Every exported backend currently contains the same implemented security foundation. The selected Free/Basic/Plus/Pro tier is configuration metadata only. Billing, quotas and backend feature gating should be connected only after those services exist.
+See [OWNERSHIP.md](../OWNERSHIP.md) for the complete member-by-member list of features and exact filenames/paths, including which files already exist and which each member should create.
+
+## Implemented endpoints
+
+- `GET /api/health` — overall process health
+- `GET /api/health/live` — liveness
+- `GET /api/health/ready` — process-only readiness placeholder
+- `/api/auth` — register, login, logout, current user (M1)
+- `/api/orders` — minimal create/list/detail with owner-only access (M1 access rules; M5 owns checkout)
+- `/api/admin` — minimal admin-only lists (M1 access rules; M4 owns the dashboard)
+- `/api/cart`, `/api/payments` — authenticated cart and demo payment endpoints (M5)
+- Redis token bucket middleware on non-health API routes (M2)
+
+Users, sessions and orders are held in memory until shared persistence is chosen. All other listed product features are planned.
+
+## Six-week sequence
+
+1. MVC foundation, contracts, health API and app shell.
+2. Identity/access, rate limiting and tenant-scoped commerce integration.
+3. Storefront/catalog.
+4. Admin/products.
+5. Cart, checkout, orders and payment demo.
+6. Integration, documentation and rehearsal.
