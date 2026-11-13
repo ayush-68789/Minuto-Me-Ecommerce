@@ -15,7 +15,7 @@ const reservationSchema = new mongoose.Schema(
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
     // User IDs are UUIDs in the current auth module; inventory reservations store them as strings.
     customerId: { type: String, index: true },
-    tenantId: { type: mongoose.Schema.Types.ObjectId, index: true },
+    tenantId: { type: String, index: true },
     quantity: { type: Number, required: true, min: 1, validate: Number.isInteger },
     status: {
       type: String,
