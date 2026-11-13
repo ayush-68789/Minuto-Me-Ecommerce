@@ -1,41 +1,35 @@
-# Minuto Me — six-week MVC demo scaffold
+# CommerceForge Store Studio
 
-Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each member’s features and exact file paths, and [docs/architecture.md](docs/architecture.md) for the MVC layout.
+CommerceForge is a guided store setup prototype. A user chooses a business category, adds product details, picks a visual style and demo tier, previews a responsive storefront, then downloads a ZIP containing that storefront and the backend modules currently implemented in this repository.
 
-## Team
-
-| Member | Role |
-|---|---|
-| M1 | Backend foundation, authentication and authorization |
-| M2 | Store customization and onboarding |
-| M3 | Dynamic storefront and catalog browsing |
-| M4 | Admin dashboard and product management |
-| M5 | Cart, checkout, orders and payments |
-
-## Six-week demo plan
-
-1. Foundation, API contracts, health API and app shell.
-2. Identity/access and store setup.
-3. Storefront/catalog.
-4. Admin/products.
-5. Cart, checkout, orders and payment demo.
-6. Integration, documentation and rehearsal.
-
-## Implemented API
-
-- Health: `GET /api/health`, `GET /api/health/live`, and `GET /api/health/ready` (process-only readiness placeholder).
-- Auth and authorization (M1): register, login, logout and current user under `/api/auth`; owner-only order reads under `/api/orders`; admin-only routes under `/api/admin`. Data is in memory and resets on restart.
-
-See [docs/api/README.md](docs/api/README.md) for the contract and the access-control demo. All other listed feature paths are planned until implemented by their owners.
+The client is a feature-based React + Tailwind application, not MVC. The backend is Express MVC and is included as source in the export.
 
 ## Run locally
 
-```sh
+From the repository root in PowerShell:
+
+```powershell
 npm install
+Copy-Item server/.env.example server/.env
+# Optional: set ADMIN_EMAIL and ADMIN_PASSWORD in server/.env for admin route checks.
+docker compose up -d redis
 npm run dev
-npm test
 ```
 
-Copy `server/.env.example` to `server/.env` and set `ADMIN_EMAIL`/`ADMIN_PASSWORD` to get an admin account.
+If Docker is unavailable, start Redis at `127.0.0.1:6379` using a Windows-compatible Redis distribution. The Store Studio and ZIP export endpoint work without Redis; protected commerce endpoints in the exported backend require it.
 
-The npm workspace starts the React app on port `5173` and the API on port `5000`; Vite proxies `/api` requests to the backend.
+Open `http://localhost:5173`. The API is at `http://localhost:5000`. The export route is `POST /api/store-builder/export` and is mounted before customer commerce rate limiting.
+
+## Backend modules included today
+
+- Health, liveness and readiness endpoints.
+- Registration, login, logout, sessions and role checks.
+- Owner-scoped order create and read APIs.
+- Admin-only user and order read APIs.
+- Redis-backed token-bucket rate limiting.
+
+The generated catalog is storefront configuration, not a product CRUD API. Inventory concurrency, payment processing, idempotent checkout and full tenant data isolation are not implemented in this checkout and are not represented as included features.
+
+The current backend stores users, sessions and orders in memory. Records reset when the server restarts. Tenant header validation does not yet isolate tenant data. Plan names are saved in generated configuration only; billing, quotas and plan-based feature gating are not implemented.
+
+See [the API contract](docs/api/README.md), [architecture notes](docs/architecture.md), and [member file ownership](OWNERSHIP.md).
