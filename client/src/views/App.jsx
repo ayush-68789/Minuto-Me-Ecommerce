@@ -1,5 +1,9 @@
 // Owner: Shared — M2 app shell, M1 auth routes, M3 storefront, M4 admin, M5 shop.
 import { Link, Route, Routes } from 'react-router-dom';
+import CartPage from './cart/CartPage.jsx';
+import CheckoutPage from './cart/CheckoutPage.jsx';
+import OrderHistoryPage from './orders/OrderHistoryPage.jsx';
+import OrderDetailPage from './orders/OrderDetailPage.jsx';
 
 function ScaffoldPage({ title, owner, feature }) {
   return (
@@ -20,6 +24,8 @@ export default function App() {
           <Link to="/onboarding">Create a store</Link>
           <Link to="/shop">Storefront</Link>
           <Link to="/dashboard">Admin</Link>
+          <Link to="/cart">Cart</Link>
+          <Link to="/orders">Orders</Link>
           <Link to="/login">Sign in</Link>
         </nav>
       </header>
@@ -28,7 +34,13 @@ export default function App() {
         <Route path="/onboarding/*" element={<ScaffoldPage title="Create your store" owner="M2" feature="Structured store customization form" />} />
         <Route path="/shop/*" element={<ScaffoldPage title="Your storefront" owner="M3" feature="Tenant-branded product browsing" />} />
         <Route path="/dashboard/*" element={<ScaffoldPage title="Store dashboard" owner="M4" feature="Admin dashboard and product management" />} />
-        <Route path="/cart/*" element={<ScaffoldPage title="Your cart" owner="M5" feature="Cart, checkout, and orders" />} />
+
+        {/* M5: Cart, checkout, orders and payments */}
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/orders" element={<OrderHistoryPage />} />
+        <Route path="/orders/:id" element={<OrderDetailPage />} />
+
         <Route path="/login" element={<ScaffoldPage title="Sign in" owner="M1" feature="Authentication and authorization" />} />
         <Route path="*" element={<ScaffoldPage title="Page not found" owner="Shared" feature="Route fallback" />} />
       </Routes>
