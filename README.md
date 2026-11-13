@@ -1,4 +1,4 @@
-# Minuto Me — six-week MVC demo scaffold
+# Minuto Me — CommerceForge six-week demo
 
 Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each member’s features and exact file paths, and [docs/architecture.md](docs/architecture.md) for the MVC layout.
 
@@ -26,8 +26,12 @@ Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each m
 - Health: `GET /api/health`, `GET /api/health/live`, and `GET /api/health/ready` (process-only readiness placeholder).
 - Auth and authorization (M1): register, login, logout and current user under `/api/auth`; owner-only order reads under `/api/orders`; admin-only routes under `/api/admin`. Data is in memory and resets on restart.
 - Token-bucket rate limiting (M2): Redis-backed global IP, tenant, login IP/account, registration, and checkout buckets. Start Redis with `docker compose up -d redis` before using API routes other than health checks.
+- Product CRUD: admin-protected MongoDB endpoints under `/api/admin/products`.
+- Concurrency-safe inventory: MongoDB replica-set transactions reserve stock for a limited time and release expired or failed reservations.
+- Checkout and payments: idempotent checkout under `/api/checkout`, Razorpay-compatible webhook handling under `/api/webhooks/razorpay`, plus the M5 demo cart, orders, and payment APIs.
+- Store Studio: configure a storefront, choose a plan, preview it, and export the generated app and selected backend modules as a ZIP.
 
-See [docs/api/README.md](docs/api/README.md) for the contract and the access-control demo. All other listed feature paths are planned until implemented by their owners.
+Plan flags in exported backends gate optional admin reports, inventory concurrency, checkout, and attack demos. Billing is not implemented. Tenant IDs are validated and used to scope selected commerce models, but full tenant provisioning and isolation across every legacy in-memory API is still incomplete. See [docs/api/README.md](docs/api/README.md) for API details.
 
 ## Run locally
 
