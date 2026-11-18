@@ -6,6 +6,19 @@ import { createZipArchive } from '../utils/zipArchive.js';
 import { HttpError } from '../middleware/errorHandler.js';
 
 const projectRoot = fileURLToPath(new URL('../../../', import.meta.url));
+
+// Auth is a core module of the store template: every plan's backend ships these files, and Store
+// Studio runs the same files for its own sign-in, so there is one copy of the auth code.
+export const AUTH_TEMPLATE_FILES = Object.freeze([
+  'src/routes/authRoutes.js',
+  'src/controllers/authController.js',
+  'src/middleware/authMiddleware.js',
+  'src/middleware/roleMiddleware.js',
+  'src/models/User.js',
+  'src/models/RefreshToken.js',
+  'src/services/jwtTokens.js',
+]);
+
 async function bundledBackendFiles() {
   const result = ['server.js', 'package.json'];
   async function walk(directory, prefix = '') {
@@ -19,6 +32,9 @@ async function bundledBackendFiles() {
   }
   await walk('src', 'src');
   await walk('scripts', 'scripts');
+  // A store without auth would expose its order and admin routes, so refuse to build one.
+  const missing = AUTH_TEMPLATE_FILES.filter((file) => !result.includes(file));
+  if (missing.length) throw new HttpError(500, 'export_source_missing', `The auth template is missing: ${missing.join(', ')}`);
   return result;
 }
 

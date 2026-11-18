@@ -13,6 +13,10 @@ server/src/
 └── middleware/             # M1: shared auth, validation and error handling
 ```
 
+### Store template: auth
+
+Every exported store backend is built from this `server/` code (see `storeExportController.js`). Auth is a core template module that ships in every plan, Free through Pro: `routes/authRoutes.js`, `controllers/authController.js`, `middleware/authMiddleware.js`, `middleware/roleMiddleware.js`, `models/User.js`, `models/RefreshToken.js` and `services/jwtTokens.js` (listed as `AUTH_TEMPLATE_FILES`). Store Studio runs the same files for its own sign-in, so there is one copy of the auth code. The export refuses to build a store if any of them is missing, and `server/test/storeExport.test.js` checks that each plan's ZIP carries them unchanged. A new auth file must be added to `AUTH_TEMPLATE_FILES`.
+
 This is a JSON API, so controllers return JSON directly; server-side HTML views are not used. There is no service layer. The health API already follows this structure. M1 owns identity/auth; M2 owns Redis rate limiting; M3 owns storefront/catalog reads; M4 owns admin/product management and the Product schema with M3 input; M5 owns cart, checkout, orders, payments and tenant-scoped commerce behavior.
 
 ## Client
