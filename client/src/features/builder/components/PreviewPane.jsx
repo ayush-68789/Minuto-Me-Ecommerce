@@ -1,27 +1,27 @@
 import { useBuilder } from '../../../shared/context/BuilderContext.jsx';
 
-function ProductTile({ product, index, accent }) {
-  const colors = ['#e8e4dc', '#e2e8df', '#eee2dc', '#e7e8ed'];
-  return <article className="min-w-0"><div className="relative aspect-[.88] overflow-hidden rounded-xl" style={{ backgroundColor: colors[index % colors.length] }}>{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center"><span className="font-display text-3xl font-medium text-black/10">{(product.name || 'P').slice(0, 1).toUpperCase()}</span></div>}</div><div className="mt-2"><p className="truncate text-[11px] font-semibold text-slate-800">{product.name || 'Your product'}</p><p className="mt-1 text-[10px] text-slate-500">${Number(product.price || 0).toFixed(2)}</p><span className="mt-2 inline-block rounded-full px-2 py-1 text-[8px] font-semibold text-white" style={{ backgroundColor: accent }}>In stock</span></div></article>;
+function ProductCard({ product, index, accent, layout }) {
+  return <article className={`preview-product preview-product-${layout.toLowerCase()}`}>
+    <div className={`preview-product-image image-tone-${index % 4}`}>
+      {product.imageUrl ? <img src={product.imageUrl} alt={product.name || 'Store product'} /> : <span>{(product.name || 'P').slice(0, 1).toUpperCase()}</span>}
+      <span className="preview-product-quick">＋</span>
+    </div>
+    <div className="preview-product-meta"><span>{product.name || 'Product name'}</span><strong>${Number(product.price || 0).toFixed(2)}</strong></div>
+    <small>{product.description || 'A lovely detail about this product.'}</small>
+    <i style={{ backgroundColor: accent }} />
+  </article>;
 }
 
-export default function PreviewPane() {
+export default function PreviewPane({ layoutMode, viewport = 'desktop' }) {
   const { store } = useBuilder();
-  const stylePresets = {
-    Natural: { surface: '#fffefa', ink: '#1e2820', muted: '#6f796f' },
-    Modern: { surface: '#f4f6f5', ink: '#17211d', muted: '#66716b' },
-    Luxury: { surface: '#fbf7f1', ink: '#30231e', muted: '#82756c' },
-    Colorful: { surface: '#fff9e9', ink: '#2b2518', muted: '#776d55' },
-    Professional: { surface: '#f6f8f7', ink: '#202928', muted: '#68716f' },
-    Dark: { surface: '#202522', ink: '#f5f3ed', muted: '#bdc4bc' },
-  };
-  const preset = stylePresets[store.style] || stylePresets.Natural;
-  return <section className="overflow-hidden rounded-2xl border border-[#e7e8e1] bg-white shadow-sm xl:sticky xl:top-[94px]"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-slate-400">Live preview</p><p className="mt-0.5 text-xs font-semibold text-slate-700">Your storefront</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-semibold text-slate-500">{store.style}</span></div>
-    <div className="p-3 sm:p-4"><div className="overflow-hidden rounded-xl border border-slate-100" style={{ backgroundColor: preset.surface, color: preset.ink }}>
-      <div className="flex items-center justify-between border-b border-black/5 px-4 py-3"><span className="font-display flex items-center gap-2 text-xs font-bold" style={{ color: store.accent }}>{store.logoUrl && <img src={store.logoUrl} alt="" className="h-5 max-w-16 object-contain" />} {store.storeName || 'Your Store'}</span><div className="flex gap-3 text-[8px] text-slate-500"><span>Shop</span>{store.features.orders && <span>Orders</span>}{store.features.auth && <span>Account</span>}</div></div>
-      <div className="px-4 pb-5 pt-6 sm:px-6 sm:pb-7"><p className="text-[8px] font-bold uppercase tracking-[.2em]" style={{ color: store.accent }}>{store.category} · EST. 2026</p><h3 className="mt-3 max-w-sm font-display text-xl font-medium leading-tight sm:text-2xl">{store.headline || 'Your store headline goes here.'}</h3><p className="mt-2 max-w-sm text-[9px] leading-4" style={{ color: preset.muted }}>{store.description || 'A short introduction to what makes your store special.'}</p><button className="mt-4 rounded-md px-3 py-2 text-[9px] font-semibold text-white" style={{ backgroundColor: store.accent }}>Explore collection <span className="ml-1">→</span></button>
-        <div className="mt-6 flex items-center justify-between"><p className="font-display text-sm font-semibold">Featured pieces</p><span className="text-[8px] text-slate-400">{store.products.length} pieces</span></div><div className="mt-3 grid grid-cols-2 gap-3">{store.products.slice(0, 4).map((product, index) => <ProductTile key={product.id} product={product} index={index} accent={store.accent} />)}</div>
-      </div><div className="border-t border-black/5 px-4 py-3 text-[8px] text-slate-400">© {new Date().getFullYear()} {store.storeName || 'Your Store'} · {store.contactEmail}</div>
-    </div><div className="mt-3 flex items-center justify-between text-[10px] text-slate-400"><span>Preview updates as you edit</span><span className="font-mono">/{store.slug || 'your-store'}</span></div></div>
-  </section>;
+  const layout = layoutMode || store.layout || 'Editorial';
+  return <div className={`store-preview theme-${(store.style || 'Natural').toLowerCase()} layout-${layout.toLowerCase()} viewport-${viewport}`} style={{ '--preview-accent': store.accent }}>
+    <div className="store-preview-announcement">A LITTLE SOMETHING GOOD, JUST FOR YOU <span>FREE SHIPPING OVER $75</span></div>
+    <header className="store-preview-header"><div className="store-preview-brand">{store.logoUrl && <img src={store.logoUrl} alt="" />}{store.storeName || 'Your Store'}</div><nav><span>Shop</span><span>Our story</span><span>Contact</span></nav><button aria-label="Open menu">☰</button></header>
+    <main>
+      <section className="store-preview-hero"><div className="store-preview-copy"><small>{store.category || 'INDEPENDENT GOODS'} · THOUGHTFULLY CHOSEN</small><h2>{store.headline || 'Make room for something lovely.'}</h2><p>{store.description || 'A considered collection for everyday living. Find your new favorite.'}</p><button>Discover the collection <span>→</span></button></div><div className="store-preview-hero-art"><div className="hero-art-circle"/><div className="hero-art-orbit"/><span>THE<br/>GOOD<br/>THINGS</span><small>NO. 01 — 2026</small></div></section>
+      <section className="store-preview-products"><div className="store-preview-section-title"><div><small>THE COLLECTION</small><h3>Find your new favorite</h3></div><span>VIEW ALL <b>↗</b></span></div><div className="store-preview-product-grid">{store.products.length ? store.products.slice(0, layout === 'Grid' ? 8 : 4).map((product, index) => <ProductCard key={product.id} product={product} index={index} accent={store.accent} layout={layout} />) : [0, 1, 2, 3].map((index) => <ProductCard key={index} product={{}} index={index} accent={store.accent} layout={layout} />)}</div></section>
+      <section className="store-preview-story"><span>✳</span><div><small>A NOTE FROM OUR STUDIO</small><p>“The best things are the ones you reach for every day.”</p></div></section>
+    </main><footer className="store-preview-footer"><span>{store.storeName || 'YOUR STORE'}</span><span>MADE WITH INTENTION · {store.contactEmail || 'HELLO@YOURSTORE.COM'}</span></footer>
+  </div>;
 }

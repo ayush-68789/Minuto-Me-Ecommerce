@@ -1,6 +1,6 @@
 # API contract — Member 1 coordinates; endpoint owner is listed by module
 
-All API responses use JSON. Shared errors have shape `{ "error": { "code": "...", "message": "...", "details": []? } }`. Authenticated routes use `Authorization: Bearer <token>`. Protected records derive the user ID from the authenticated session, never from query/body fields.
+All API responses use JSON. Shared errors have shape `{ "error": { "code": "...", "message": "...", "details": []? } }`. Authenticated routes use `Authorization: Bearer <access JWT>`. Access tokens live in app memory; a rotating refresh JWT is sent only as an HttpOnly cookie. Protected records derive the user ID from the verified access JWT, never from query/body fields.
 
 ## Health (M1, public)
 

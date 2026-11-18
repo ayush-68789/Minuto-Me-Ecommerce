@@ -1,6 +1,6 @@
-# Minuto Me — CommerceForge six-week demo
+# Minuto Mein Ecommerce
 
-Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each member’s features and exact file paths, and [docs/architecture.md](docs/architecture.md) for the MVC layout.
+React and Express ecommerce website builder and demo backend. See [OWNERSHIP.md](OWNERSHIP.md) for each member’s features and exact file paths, and [docs/architecture.md](docs/architecture.md) for the server architecture.
 
 ## Team
 
@@ -24,8 +24,8 @@ Initial React and Express workspace. See [OWNERSHIP.md](OWNERSHIP.md) for each m
 ## Implemented API
 
 - Health: `GET /api/health`, `GET /api/health/live`, and `GET /api/health/ready` (process-only readiness placeholder).
-- Auth and authorization (M1): register, login, logout and current user under `/api/auth`; owner-only order reads under `/api/orders`; admin-only routes under `/api/admin`. Data is in memory and resets on restart.
-- Token-bucket rate limiting (M2): Redis-backed global IP, tenant, login IP/account, registration, and checkout buckets. Start Redis with `docker compose up -d redis` before using API routes other than health checks.
+- Auth and authorization (M1): register, login, refresh, logout and current user under `/api/auth`; owner-only order reads under `/api/orders`; admin-only routes under `/api/admin`. Short-lived access JWTs remain in app memory; rotating refresh JWTs use an HttpOnly cookie, with hashed refresh identifiers persisted in MongoDB for revocation.
+- Store Studio itself does not use Redis rate limiting. Rate limiting is part of each exported store backend, enabled with a plan-specific token-bucket allowance and backed by Redis.
 - Product CRUD: admin-protected MongoDB endpoints under `/api/admin/products`.
 - Concurrency-safe inventory: MongoDB replica-set transactions reserve stock for a limited time and release expired or failed reservations.
 - Checkout and payments: idempotent checkout under `/api/checkout`, Razorpay-compatible webhook handling under `/api/webhooks/razorpay`, plus the M5 demo cart, orders, and payment APIs.
@@ -37,11 +37,10 @@ Plan flags in exported backends gate optional admin reports, inventory concurren
 
 ```sh
 npm install
-docker compose up -d redis
 npm run dev
 npm test
 ```
 
-Copy `server/.env.example` to `server/.env` and set `ADMIN_EMAIL`/`ADMIN_PASSWORD` to get an admin account. Redis must be running for non-health API routes; they fail closed with HTTP 503 if Redis is unavailable.
+Copy `server/.env.example` to `server/.env`, replace both JWT secret placeholders with different random values of at least 32 characters, and set `ADMIN_EMAIL`/`ADMIN_PASSWORD` to get an admin account. The local MongoDB URI is `mongodb://127.0.0.1:27017/commerceforge`; use the same string in MongoDB Compass. The Store Studio platform runs with `RATE_LIMITING_ENABLED=false`, so Redis is not needed for its own routes. Exported store backends enable Redis rate limiting and include Docker Compose configuration for Redis and MongoDB. Inventory transaction endpoints require MongoDB to run as a replica set.
 
 The npm workspace starts the React app on port `5173` and the API on port `5000`; Vite proxies `/api` requests to the backend.

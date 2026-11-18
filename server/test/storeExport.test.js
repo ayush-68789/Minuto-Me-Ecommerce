@@ -9,10 +9,10 @@ import { exportStore } from '../src/controllers/storeExportController.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const output = path.join(root, 'server', '.export-verification');
 const tierFeatures = {
-  Free: { adminReports: false, inventory: false, checkout: false, attackDemo: false },
-  Basic: { adminReports: true, inventory: false, checkout: false, attackDemo: false },
-  Plus: { adminReports: true, inventory: true, checkout: false, attackDemo: false },
-  Pro: { adminReports: true, inventory: true, checkout: true, attackDemo: true },
+  Free: { adminReports: false, inventory: false, checkout: false, attackDemo: false, rateLimiting: true },
+  Basic: { adminReports: true, inventory: false, checkout: false, attackDemo: false, rateLimiting: true },
+  Plus: { adminReports: true, inventory: true, checkout: false, attackDemo: false, rateLimiting: true },
+  Pro: { adminReports: true, inventory: true, checkout: true, attackDemo: true, rateLimiting: true },
 };
 
 function readZip(archive) {
@@ -40,27 +40,28 @@ function readZip(archive) {
 
 async function generate(plan) {
   let archive;
+  const headers = {};
   const response = {
-    set() { return this; },
+    set(values) { Object.assign(headers, values); return this; },
     status(code) { assert.equal(code, 200); return this; },
     send(buffer) { archive = buffer; return this; },
   };
   await exportStore({ body: {
     storeName: `Test ${plan}`, slug: `test-${plan.toLowerCase()}`, plan,
-    category: 'Other', features: tierFeatures[plan],
+    category: 'Other', layout: 'Showcase', features: tierFeatures[plan],
     products: [{ name: 'Sample product', price: 24.5, description: 'Test description', stock: 7 }],
   } }, response, (error) => { throw error; });
   assert.ok(Buffer.isBuffer(archive), `${plan} returns a ZIP buffer`);
-  return archive;
+  return { archive, headers };
 }
 
 await mkdir(output, { recursive: true });
 
 for (const [plan, features] of Object.entries(tierFeatures)) {
   test(`${plan} export contains the matching backend and storefront`, async () => {
-    const archive = await generate(plan);
+    const { archive, headers } = await generate(plan);
     const files = readZip(archive);
-    const base = `commerceforge-test-${plan.toLowerCase()}`;
+    const base = `minuto-mein-ecommerce-test-${plan.toLowerCase()}`;
     const read = (relative) => {
       const value = files.get(`${base}/${relative}`);
       assert.ok(value, `${relative} exists in ${plan} ZIP`);
@@ -70,10 +71,20 @@ for (const [plan, features] of Object.entries(tierFeatures)) {
     const env = read('backend/.env.example');
     const app = read('backend/src/app.js');
     const frontend = read('frontend/src/Storefront.jsx');
+    const frontendConfig = JSON.parse(read('frontend/src/store-config.json'));
+    const frontendPackage = JSON.parse(read('frontend/package.json'));
+    const frontendStyles = read('frontend/src/styles.css');
     await mkdir(path.join(output, plan), { recursive: true });
     await writeFile(path.join(output, plan, 'package.json'), read('backend/package.json'));
 
     assert.equal(config.plan, plan);
+    assert.equal(config.layout, 'Showcase');
+    assert.equal(headers['X-Store-Plan'], plan);
+    assert.equal(headers['X-Store-Layout'], 'Showcase');
+    assert.deepEqual(JSON.parse(headers['X-Store-Features']), { auth: true, orders: true, ...features });
+    assert.equal(frontendConfig.layout, 'Showcase');
+    assert.equal(frontendPackage.devDependencies.vite, '^6.4.6');
+    assert.match(frontendStyles, /layout-showcase/);
     assert.deepEqual(config.features, { auth: true, orders: true, ...features });
     assert.match(config.products[0].id, /^[a-f\d]{24}$/i);
     assert.ok(read('backend/src/routes/productRoutes.js'));
@@ -90,6 +101,8 @@ for (const [plan, features] of Object.entries(tierFeatures)) {
     assert.match(env, new RegExp(`INVENTORY_ENABLED=${features.inventory}`));
     assert.match(env, new RegExp(`CHECKOUT_ENABLED=${features.checkout}`));
     assert.match(env, new RegExp(`ATTACK_DEMO_ENABLED=${features.attackDemo}`));
+    assert.match(env, /RATE_LIMITING_ENABLED=true/);
+    assert.match(env, new RegExp(`RATE_LIMIT_PLAN=${plan.toLowerCase()}`));
 
     assert.match(frontend, /store\.features\.inventory/);
     assert.match(frontend, /store\.features\.checkout/);
