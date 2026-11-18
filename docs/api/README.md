@@ -24,6 +24,8 @@ Every cart key is derived from the authenticated user and tenant. Send `x-tenant
 - `PATCH /api/cart/items/:productId` — `{ quantity }`
 - `DELETE /api/cart/items/:productId`
 - `DELETE /api/cart`
+- `POST /api/cart/coupon` — `{ code }`; applies promo discount (e.g. `SAVE10`, `MINUTO20`, `FREESHIP`).
+- `DELETE /api/cart/coupon` — removes active promo coupon from cart.
 
 **Integration limitation:** the Product persistence/catalog API is not merged yet. Cart item prices are still demo inputs until M4's server Product model is connected. Do not treat checkout pricing as production-safe until then.
 
@@ -33,16 +35,19 @@ All requests are tenant-scoped by `x-tenant-id`. Customers only see their own or
 
 - `POST /api/orders/checkout` — `{ customer: { phone? }, shippingAddress: { street, city, ... }, paymentMethod, fromCart: true }`; buyer identity comes from the auth session.
 - `POST /api/orders` — direct line-item compatibility for the M1 auth demo; `{ items: [{ productId, quantity }] }`.
-- `GET /api/orders` — caller's orders. Admins may set `all=true` to list that tenant's orders.
+- `GET /api/orders` — caller's orders. Admins may set `all=true` to list that tenant's orders. Optional filter `?status=<status>` (e.g., `pending`, `processing`, `shipped`, `delivered`, `cancelled`).
 - `GET /api/orders/:orderId` — owner/admin within the selected tenant; other/missing IDs both return 404.
-- `PATCH /api/orders/:orderId/status` — admin only.
+- `POST /api/orders/:orderId/cancel` — owner/admin; cancels pending or processing orders with `{ reason? }`.
+- `PATCH /api/orders/:orderId/status` — admin only; `{ status }`.
+- `PATCH /api/orders/:orderId/shipment` — admin only; `{ trackingNumber, carrier, estimatedDelivery }`.
 
 ## Demo payments (M5)
 
 - `POST /api/payments` — authenticated order owner; `{ orderId, method }`. Amount is read from the server-side order.
 - `POST /api/payments/:id/process` — authenticated order owner; optional `{ simulateSuccess }` for the demo.
+- `POST /api/payments/:id/refund` — authenticated order owner or admin; `{ amount?, reason? }`.
 - `GET /api/payments/:id` — authenticated order owner.
-- `POST /api/payments/webhook` — HMAC verified using raw request bytes and `x-payment-signature`; configure `PAYMENT_WEBHOOK_SECRET`.
+- `POST /api/payments/webhook` — HMAC verified using raw request bytes and `x-payment-signature`; configure `PAYMENT_WEBHOOK_SECRET`. Supports `payment.succeeded`, `payment.failed`, and `payment.refunded`.
 
 This is a local payment simulation, not a live payment provider integration. Payment model persistence and event replay records remain demo-only.
 
