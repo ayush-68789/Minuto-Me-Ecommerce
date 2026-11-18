@@ -1,5 +1,5 @@
-// Owner: Member 5 — Order history page showing customer past orders and statuses.
-import { useState, useEffect } from 'react';
+// Owner: Member 5 — Order history page showing customer past orders and statuses with tab filtering.
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import orderModel from '../../models/orderModel.js';
 
@@ -7,6 +7,8 @@ export default function OrderHistoryPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     async function fetchOrders() {
@@ -42,6 +44,25 @@ export default function OrderHistoryPage() {
     );
   };
 
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesTab = activeTab === 'all' || order.status === activeTab;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q ||
+        order.id.toLowerCase().includes(q) ||
+        (order.items || []).some(item => (item.title || '').toLowerCase().includes(q));
+      return matchesTab && matchesSearch;
+    });
+  }, [orders, activeTab, searchQuery]);
+
+  const tabs = [
+    { id: 'all', label: 'All Orders' },
+    { id: 'processing', label: 'Processing' },
+    { id: 'shipped', label: 'Shipped' },
+    { id: 'delivered', label: 'Delivered' },
+    { id: 'cancelled', label: 'Cancelled' }
+  ];
+
   if (loading) {
     return (
       <main className="page">
@@ -55,7 +76,7 @@ export default function OrderHistoryPage() {
   return (
     <main className="page" style={{ maxWidth: '880px' }}>
       <p className="eyebrow">M5 · Order History</p>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>Order History</h1>
         <span style={{ color: '#58627a', fontSize: '0.95rem' }}>
           {orders.length} {orders.length === 1 ? 'order' : 'orders'} placed
@@ -68,11 +89,48 @@ export default function OrderHistoryPage() {
         </div>
       )}
 
-      {orders.length === 0 ? (
+      {/* Filter and Search Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+        {/* Status Tabs */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '6px',
+                border: activeTab === tab.id ? '1px solid #172033' : '1px solid #e2e8f0',
+                background: activeTab === tab.id ? '#172033' : '#ffffff',
+                color: activeTab === tab.id ? '#ffffff' : '#475569',
+                cursor: 'pointer',
+                fontSize: '0.88rem',
+                fontWeight: activeTab === tab.id ? 600 : 400
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <input
+          type="search"
+          placeholder="Search by ID or item..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.88rem', minWidth: '220px' }}
+        />
+      </div>
+
+      {filteredOrders.length === 0 ? (
         <div style={{ background: '#ffffff', borderRadius: '12px', padding: '3.5rem 2rem', textAlign: 'center', border: '1px solid #e6e8ee' }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
-          <h2 style={{ fontSize: '1.35rem', margin: '0 0 0.5rem 0' }}>No orders yet</h2>
-          <p style={{ color: '#58627a', marginBottom: '2rem' }}>When you complete a purchase, your orders will appear here.</p>
+          <h2 style={{ fontSize: '1.35rem', margin: '0 0 0.5rem 0' }}>No matching orders found</h2>
+          <p style={{ color: '#58627a', marginBottom: '2rem' }}>
+            {orders.length === 0 ? 'When you complete a purchase, your orders will appear here.' : 'Try selecting another tab or clearing your search.'}
+          </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
             <Link to="/cart" style={{ display: 'inline-block', padding: '0.75rem 1.5rem', background: '#172033', color: '#ffffff', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>
               Go to Cart
@@ -81,7 +139,7 @@ export default function OrderHistoryPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {orders.map((order) => {
+          {filteredOrders.map((order) => {
             const itemCount = (order.items || []).reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
             return (
               <div
