@@ -1,4 +1,5 @@
 // Owner: Member 5 — Cart page showing cart items, quantity adjustments, and totals.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import useCartController from '../../controllers/useCartController.js';
 
@@ -7,11 +8,17 @@ export default function CartPage() {
     cart,
     loading,
     error,
+    couponError,
     updateQuantity,
     removeItem,
     clearCart,
+    applyCoupon,
+    removeCoupon,
     addDemoItem
   } = useCartController();
+
+  const [couponInput, setCouponInput] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
   if (loading && (!cart.items || cart.items.length === 0)) {
     return (
@@ -24,8 +31,22 @@ export default function CartPage() {
   }
 
   const items = cart.items || [];
-  const pricing = cart.pricing || { subtotal: 0, shipping: 0, tax: 0, total: 0 };
+  const pricing = cart.pricing || { subtotal: 0, discount: 0, coupon: null, shipping: 0, tax: 0, total: 0 };
   const hasItems = items.length > 0;
+
+  const handleApplyCoupon = async (e) => {
+    e.preventDefault();
+    if (!couponInput.trim()) return;
+    try {
+      setApplyingCoupon(true);
+      await applyCoupon(couponInput);
+      setCouponInput('');
+    } catch {
+      // error handled in controller
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
 
   return (
     <main className="page" style={{ maxWidth: '1000px' }}>
@@ -155,6 +176,13 @@ export default function CartPage() {
               <span style={{ fontWeight: 600 }}>${pricing.subtotal?.toFixed(2)}</span>
             </div>
 
+            {pricing.discount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.95rem', color: '#16a34a' }}>
+                <span>Discount ({pricing.coupon?.code})</span>
+                <span style={{ fontWeight: 600 }}>−${pricing.discount?.toFixed(2)}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
               <span style={{ color: '#58627a' }}>Shipping</span>
               <span style={{ fontWeight: 600 }}>
@@ -165,6 +193,40 @@ export default function CartPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem', fontSize: '0.95rem' }}>
               <span style={{ color: '#58627a' }}>Estimated Tax (8%)</span>
               <span style={{ fontWeight: 600 }}>${pricing.tax?.toFixed(2)}</span>
+            </div>
+
+            {/* Promo Code Input */}
+            <div style={{ borderTop: '1px solid #f1f3f7', paddingTop: '1rem', marginBottom: '1rem' }}>
+              {pricing.coupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#166534', fontWeight: 600 }}>🏷️ {pricing.coupon.code} applied</span>
+                  <button type="button" onClick={removeCoupon} style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}>
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    placeholder="Promo code (e.g. SAVE10)"
+                    style={{ flex: 1, padding: '0.45rem 0.65rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem' }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={applyingCoupon || !couponInput.trim()}
+                    style={{ padding: '0.45rem 0.85rem', background: '#334155', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    Apply
+                  </button>
+                </form>
+              )}
+              {couponError && (
+                <div style={{ fontSize: '0.8rem', color: '#dc2626', marginTop: '0.35rem' }}>
+                  {couponError}
+                </div>
+              )}
             </div>
 
             <div style={{ borderTop: '1px solid #e6e8ee', paddingTop: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 800 }}>
