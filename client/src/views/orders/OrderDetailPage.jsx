@@ -172,6 +172,13 @@ export default function OrderDetailPage() {
 
           {/* Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{ padding: '0.75rem', background: '#f8fafc', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.92rem' }}
+            >
+              🖨️ Print Receipt
+            </button>
             <Link
               to="/orders"
               style={{ display: 'block', textAlign: 'center', padding: '0.75rem', background: '#172033', color: '#ffffff', borderRadius: '8px', textDecoration: 'none', fontWeight: 600, fontSize: '0.92rem' }}
