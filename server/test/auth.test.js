@@ -1,8 +1,10 @@
 // Owner: Member 1 — auth and authorization checks, including the live demo attacks.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import mongoose from 'mongoose';
 import app from '../src/app.js';
 import userModel, { ROLES } from '../src/models/User.js';
+import sessionModel from '../src/models/Session.js';
 
 let server;
 let baseUrl;
@@ -46,12 +48,18 @@ async function signInAdmin() {
 }
 
 before(async () => {
+  await mongoose.connect(process.env.TEST_AUTH_MONGODB_URI || 'mongodb://127.0.0.1:27017/commerceforge_auth_test');
+  await Promise.all([userModel.init(), sessionModel.init()]);
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => server.close());
+after(async () => {
+  await new Promise((resolve) => server.close(resolve));
+  await mongoose.connection.dropDatabase();
+  await mongoose.disconnect();
+});
 
 test('register returns a customer and never exposes the password hash', async () => {
   const { user, token } = await registerCustomer('alice');

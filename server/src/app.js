@@ -22,16 +22,23 @@ import { configureTrustedProxy } from './config/trustedProxy.js';
 
 const app = express();
 const enabled = (name, defaultValue = true) => process.env[name] === undefined ? defaultValue : process.env[name] === 'true';
+const rateLimitingEnabled = enabled('RATE_LIMITING_ENABLED', false);
 configureTrustedProxy(app);
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+  exposedHeaders: ['X-Store-Plan', 'X-Store-Layout', 'X-Store-Features'],
+}));
 app.use('/api/health', healthRoutes);
 
-// Apply IP and trusted-tenant limits before parsing attacker-controlled bodies.
-app.use('/api', tenantContext, globalRateLimit, tenantRateLimit);
+app.use('/api', tenantContext);
+// The Store Studio platform runs without request throttling. Exported store
+// backends opt in with RATE_LIMITING_ENABLED=true and their selected plan.
+if (rateLimitingEnabled) app.use('/api', globalRateLimit, tenantRateLimit);
 
 // Webhooks need raw bytes for HMAC checks, and receive a separate IP bucket too.
-if (enabled('CHECKOUT_ENABLED')) app.use('/api/webhooks', webhookIpRateLimit, express.raw({ type: 'application/json', limit: '100kb' }), webhookRoutes);
+if (enabled('CHECKOUT_ENABLED')) app.use('/api/webhooks', ...(rateLimitingEnabled ? [webhookIpRateLimit] : []), express.raw({ type: 'application/json', limit: '100kb' }), webhookRoutes);
 
 app.use(express.json({
   limit: process.env.JSON_BODY_LIMIT || '256kb',
@@ -44,7 +51,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin/products', productRoutes);
-app.use('/api/admin/rate-limit-metrics', rateLimitMetricsRoutes);
+if (rateLimitingEnabled) app.use('/api/admin/rate-limit-metrics', rateLimitMetricsRoutes);
 if (enabled('ADMIN_REPORTS_ENABLED')) app.use('/api/admin', adminRoutes);
 if (enabled('INVENTORY_ENABLED')) app.use('/api/inventory', inventoryRoutes);
 if (enabled('CHECKOUT_ENABLED')) app.use('/api/checkout', checkoutRoutes);

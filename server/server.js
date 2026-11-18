@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import app from './src/app.js';
 import userModel, { ROLES } from './src/models/User.js';
+import refreshTokenModel from './src/models/RefreshToken.js';
 import Product from './src/models/Product.js';
 import Reservation from './src/models/Reservation.js';
 import { startReservationSweeper } from './src/modules/inventory/reservationSweeper.js';
@@ -41,7 +42,12 @@ async function initializeDatabase() {
   }
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
-    await Promise.all([Product.init(), ...(isEnabled('INVENTORY_ENABLED') ? [Reservation.init()] : [])]);
+    await Promise.all([
+      userModel.init(),
+      refreshTokenModel.init(),
+      Product.init(),
+      ...(isEnabled('INVENTORY_ENABLED') ? [Reservation.init()] : []),
+    ]);
     await seedConfiguredProducts();
     if (isEnabled('CHECKOUT_ENABLED', false)) {
       await Promise.all([Order.init(), Payment.init(), IdempotencyKey.init(), WebhookEvent.init()]);
@@ -61,14 +67,16 @@ async function initializeDatabase() {
 }
 
 async function start() {
+  const databaseConnected = await initializeDatabase();
   const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
-  if (ADMIN_EMAIL && ADMIN_PASSWORD) {
-    await userModel.create({ name: 'Admin', email: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: ROLES.ADMIN });
-    console.log(`Admin account ready: ${ADMIN_EMAIL}`);
-  } else {
+  if (databaseConnected && ADMIN_EMAIL && ADMIN_PASSWORD) {
+    const admin = await userModel.create({ name: 'Admin', email: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: ROLES.ADMIN });
+    console.log(`Admin account ${admin ? 'created' : 'already exists'}: ${ADMIN_EMAIL}`);
+  } else if (databaseConnected) {
     console.warn('ADMIN_EMAIL/ADMIN_PASSWORD not set; admin routes have no seeded admin.');
+  } else {
+    console.warn('MongoDB is offline; sign-up and sign-in are disabled until the database is available.');
   }
-  await initializeDatabase();
   app.listen(port, () => console.log(`Minuto Me API listening on port ${port}`));
 }
 
