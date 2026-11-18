@@ -122,17 +122,29 @@ export default function Storefront() {
     if (!localStorage.getItem(customerKey)) localStorage.setItem(customerKey, crypto.randomUUID());
     const response = await fetch(apiBase + path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', 'x-tenant-id': store.slug, 'x-customer-id': localStorage.getItem(customerKey), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers } });
     const data = response.status === 204 ? null : await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || 'Request failed');
+    // Validation errors list each problem in details; show those rather than the generic message.
+    if (!response.ok) throw new Error(data?.error?.details?.length ? 'Please check: ' + data.error.details.join('; ') + '.' : data?.error?.message || 'Request failed');
     return data;
   }
   useEffect(() => { api('/api/health').then(() => setStatus('Backend connected')).catch(() => setStatus('Backend unavailable')); let timer; let active = true; const renew = () => api('/api/auth/refresh', { method: 'POST' }).then(data => { if (active) { setToken(data.accessToken); timer = setTimeout(renew, Math.max(1000, (data.expiresIn - 60) * 1000)); } }).catch(() => { if (active) setToken(''); }); renew(); return () => { active = false; clearTimeout(timer); }; }, []);
+  function accountProblems(registering) {
+    const problems = [];
+    if (registering && !name.trim()) problems.push('enter your name');
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim())) problems.push('enter a valid email address, like you@example.com');
+    if (registering ? password.length < 8 || password.length > 128 : !password) problems.push(registering ? 'use a password of 8 to 128 characters' : 'enter your password');
+    return problems;
+  }
   async function signIn(event) {
     event.preventDefault(); setMessage('');
+    const problems = accountProblems(false);
+    if (problems.length) return setMessage('Please ' + problems.join(' and ') + '.');
     try { const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); setToken(data.accessToken); setMessage('Signed in.'); }
     catch (error) { setMessage(error.message); }
   }
   async function signUp(event) {
     event.preventDefault(); setMessage('');
+    const problems = accountProblems(true);
+    if (problems.length) return setMessage('Please ' + problems.join(' and ') + '.');
     try { const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }); setToken(data.accessToken); setMessage('Account created.'); }
     catch (error) { setMessage(error.message); }
   }
