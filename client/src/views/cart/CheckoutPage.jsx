@@ -264,6 +264,13 @@ export default function CheckoutPage() {
             <span>${pricing.subtotal?.toFixed(2)}</span>
           </div>
 
+          {pricing.discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.92rem', color: '#16a34a' }}>
+              <span>Promo Discount {pricing.coupon?.code ? `(${pricing.coupon.code})` : ''}</span>
+              <span>−${pricing.discount?.toFixed(2)}</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.92rem' }}>
             <span style={{ color: '#58627a' }}>Shipping</span>
             <span>{pricing.shipping === 0 ? <span style={{ color: '#16a34a' }}>FREE</span> : `$${pricing.shipping?.toFixed(2)}`}</span>
