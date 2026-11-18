@@ -2,36 +2,37 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { getPlan } from '../../features/builder/planCatalog.js';
 
 const BuilderContext = createContext(null);
-const starterProducts = [
-  { id: 'p-1', name: 'Everyday essential', price: '38', description: 'Made for the little moments that make your day.', stock: '24', imageUrl: '' },
-  { id: 'p-2', name: 'The weekend set', price: '64', description: 'A considered favorite, ready to go anywhere.', stock: '12', imageUrl: '' },
-];
 const defaults = {
-  storeName: 'Sunday Supply', slug: 'sunday-supply', logoUrl: '', category: 'Clothing', contactEmail: 'hello@sundaysupply.com',
-  headline: 'Everyday goods, thoughtfully made.', description: 'A small collection of useful things, made to make every day feel a little better.',
-  accent: '#516b54', style: 'Natural', plan: 'Free',
-  products: starterProducts,
+  storeName: '', slug: '', logoUrl: '', category: '', contactEmail: '',
+  headline: '', description: '',
+  accent: '#516b54', style: 'Natural', layout: 'Editorial', plan: 'Free', planConfirmed: false, layoutConfirmed: false,
+  products: [],
   features: { auth: true, orders: true, adminReports: false, inventory: false, attackDemo: false, checkout: false },
 };
 
-function loadInitialState() {
+function loadInitialState(storageKey) {
   try {
-    const saved = JSON.parse(localStorage.getItem('commerceforge-builder') || 'null');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (!saved) return defaults;
     const plan = getPlan(saved.plan);
     const features = { ...defaults.features, ...saved.features };
     for (const key of ['adminReports', 'inventory', 'attackDemo', 'checkout']) features[key] = Boolean(plan.features[key] && features[key]);
-    return { ...defaults, ...saved, plan: plan.name, features, products: Array.isArray(saved.products) ? saved.products : starterProducts };
+    return { ...defaults, ...saved, plan: plan.name, features, products: Array.isArray(saved.products) ? saved.products : [] };
   } catch { return defaults; }
 }
 
-export function BuilderProvider({ children }) {
-  const [store, setStore] = useState(loadInitialState);
+export function BuilderProvider({ children, user }) {
+  const storageKey = `minuto-studio-draft:${encodeURIComponent(String(user?.id || user?.email || 'guest').toLowerCase())}`;
+  const [store, setStore] = useState(() => loadInitialState(storageKey));
+  const persist = useCallback((next) => {
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+  }, [storageKey]);
   const update = useCallback((key, value) => setStore((current) => {
     const next = { ...current, [key]: value };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    if (['layout', 'style', 'accent'].includes(key)) next.layoutConfirmed = true;
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const setPlan = useCallback((planName) => setStore((current) => {
     const previousPlan = getPlan(current.plan);
     const nextPlan = getPlan(planName);
@@ -40,34 +41,34 @@ export function BuilderProvider({ children }) {
       if (!nextPlan.features[key]) features[key] = false;
       else if (!previousPlan.features[key]) features[key] = true;
     }
-    const next = { ...current, plan: nextPlan.name, features };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    const next = { ...current, plan: nextPlan.name, planConfirmed: true, features };
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const updateProduct = useCallback((id, key, value) => setStore((current) => {
     const next = { ...current, products: current.products.map((product) => product.id === id ? { ...product, [key]: value } : product) };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const addProduct = useCallback(() => setStore((current) => {
     const next = { ...current, products: [...current.products, { id: `p-${Date.now()}`, name: '', price: '', description: '', stock: '0', imageUrl: '' }] };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const removeProduct = useCallback((id) => setStore((current) => {
     const next = { ...current, products: current.products.filter((product) => product.id !== id) };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const setFeature = useCallback((key, value) => setStore((current) => {
     if (value && ['adminReports', 'inventory', 'attackDemo', 'checkout'].includes(key) && !getPlan(current.plan).features[key]) return current;
     let features = { ...current.features, [key]: value };
     if (key === 'auth' && !value) features.orders = false;
     if (key === 'orders' && value) features.auth = true;
     const next = { ...current, features };
-    try { localStorage.setItem('commerceforge-builder', JSON.stringify(next)); } catch { /* Keep the builder usable if storage is full. */ }
+    persist(next);
     return next;
-  }), []);
+  }), [persist]);
   const value = useMemo(() => ({ store, update, setPlan, updateProduct, addProduct, removeProduct, setFeature }), [store, update, setPlan, updateProduct, addProduct, removeProduct, setFeature]);
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
