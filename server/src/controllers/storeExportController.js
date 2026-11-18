@@ -23,9 +23,9 @@ async function bundledBackendFiles() {
 }
 
 const planFeatures = {
-  Free: { adminReports: false, inventory: false, attackDemo: false, checkout: false, rateLimiting: true },
-  Basic: { adminReports: true, inventory: false, attackDemo: false, checkout: false, rateLimiting: true },
-  Plus: { adminReports: true, inventory: true, attackDemo: false, checkout: false, rateLimiting: true },
+  Free: { adminReports: false, inventory: false, attackDemo: false, checkout: false, rateLimiting: false },
+  Basic: { adminReports: true, inventory: false, attackDemo: false, checkout: false, rateLimiting: false },
+  Plus: { adminReports: true, inventory: true, attackDemo: false, checkout: false, rateLimiting: false },
   Pro: { adminReports: true, inventory: true, attackDemo: true, checkout: true, rateLimiting: true },
 };
 
@@ -41,7 +41,7 @@ function normalizeStore(body) {
   const accent = /^#[0-9a-fA-F]{6}$/.test(body.accent) ? body.accent : '#516b54';
   const plan = ['Free', 'Basic', 'Plus', 'Pro'].includes(body.plan) ? body.plan : 'Free';
   const entitled = planFeatures[plan];
-  const features = Object.fromEntries(Object.entries(entitled).map(([key, enabled]) => [key, enabled && body.features?.[key] !== false]));
+  const features = Object.fromEntries(Object.entries(entitled).map(([key, enabled]) => [key, enabled && (key === 'rateLimiting' || body.features?.[key] !== false)]));
   const products = Array.isArray(body.products) ? body.products.slice(0, 100).map((product) => ({
     id: new mongoose.Types.ObjectId().toString(),
     name: String(product?.name || '').trim().slice(0, 100),
@@ -59,7 +59,7 @@ function normalizeStore(body) {
     accent, style: String(body.style || 'Natural').slice(0, 30),
     layout: ['Editorial', 'Grid', 'Showcase', 'Minimal'].includes(body.layout) ? body.layout : 'Editorial', plan,
     features: { auth: body.features?.auth !== false, orders: body.features?.orders !== false, ...features }, products,
-    generatedAt: new Date().toISOString(), backendCapabilities: ['health', 'auth-and-roles', 'owner-scoped-orders', 'product-crud', 'redis-token-bucket-rate-limiting', ...(features.adminReports ? ['admin-reports'] : []), ...(features.inventory ? ['atomic-inventory-reservations'] : []), ...(features.checkout ? ['idempotent-checkout', 'verified-payment-webhooks'] : []), ...(features.attackDemo ? ['concurrency-attack-demo'] : [])],
+    generatedAt: new Date().toISOString(), backendCapabilities: ['health', 'auth-and-roles', 'owner-scoped-orders', 'product-crud', ...(features.rateLimiting ? ['redis-token-bucket-rate-limiting'] : []), ...(features.adminReports ? ['admin-reports'] : []), ...(features.inventory ? ['atomic-inventory-reservations'] : []), ...(features.checkout ? ['idempotent-checkout', 'verified-payment-webhooks'] : []), ...(features.attackDemo ? ['concurrency-attack-demo'] : [])],
     knownLimitations: ['demo-template-requires-local-configuration', 'full-tenant-provisioning-is-not-implemented', 'billing-and-plan-upgrade-enforcement-are-not-implemented'],
   };
 }
@@ -72,7 +72,7 @@ function generatedFrontendFiles(store, root) {
     { path: `${root}/frontend/vite.config.js`, content: `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { proxy: { '/api': 'http://localhost:5000' } } });\n` },
     { path: `${root}/frontend/src/store-config.json`, content: config },
     { path: `${root}/frontend/src/main.jsx`, content: `import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport Storefront from './Storefront.jsx';\nimport './styles.css';\ncreateRoot(document.getElementById('root')).render(<React.StrictMode><Storefront /></React.StrictMode>);\n` },
-    { path: `${root}/frontend/src/Storefront.jsx`, content: storefrontTemplate },
+    { path: `${root}/frontend/src/Storefront.jsx`, content: storefrontTemplate.replace('Authentication, order ownership checks and Redis-backed request protection are included in the backend starter.', `Authentication and order ownership checks are included in every plan.${store.features.rateLimiting ? ' Pro adds Redis-backed request protection.' : ''}`) },
     { path: `${root}/frontend/src/styles.css`, content: `${storefrontStyles(store.accent)}${storefrontTheme(store.style)}` },
     { path: `${root}/frontend/.env.example`, content: `VITE_API_BASE_URL=\n` },
   ];
@@ -80,11 +80,13 @@ function generatedFrontendFiles(store, root) {
 
 function generatedEnvironment(store) {
   const yesNo = (enabled) => enabled ? 'true' : 'false';
-  return `NODE_ENV=development\nPORT=5000\nCLIENT_URL=http://localhost:5173\nTRUST_PROXY_CIDRS=\nJSON_BODY_LIMIT=256kb\nURLENCODED_BODY_LIMIT=32kb\nRATE_LIMITING_ENABLED=${yesNo(store.features.rateLimiting)}\nRATE_LIMIT_PLAN=${store.plan.toLowerCase()}\nREDIS_URL=redis://127.0.0.1:6379\nRATE_LIMIT_MAX_IDENTITIES=10000\nAI_MAX_INPUT_TOKENS=4000\nAI_MAX_OUTPUT_TOKENS=1000\nAI_PROVIDER_TIMEOUT_MS=15000\nAI_PROVIDER_MAX_CONCURRENCY=8\nAI_INPUT_COST_MICROUSD_PER_1K=0\nAI_OUTPUT_COST_MICROUSD_PER_1K=0\nMONGODB_URI=mongodb://127.0.0.1:27017/${store.slug}?replicaSet=rs0\nACCESS_TOKEN_SECRET=replace-with-a-random-secret-at-least-32-characters\nREFRESH_TOKEN_SECRET=replace-with-a-different-random-secret-at-least-32-characters\nINVENTORY_ENABLED=${yesNo(store.features.inventory)}\nRESERVATION_LIFECYCLE_ENABLED=${yesNo(store.features.inventory)}\nADMIN_REPORTS_ENABLED=${yesNo(store.features.adminReports)}\nCHECKOUT_ENABLED=${yesNo(store.features.checkout)}\nATTACK_DEMO_ENABLED=${yesNo(store.features.attackDemo)}\nRESERVATION_TTL_MINUTES=10\nRAZORPAY_KEY_ID=\nRAZORPAY_KEY_SECRET=\nRAZORPAY_WEBHOOK_SECRET=replace-with-a-random-secret\nADMIN_EMAIL=admin@example.test\nADMIN_PASSWORD=replace-before-use\n`;
+  return `NODE_ENV=development\nPORT=5000\nCLIENT_URL=http://localhost:5173\nTRUST_PROXY_CIDRS=\nJSON_BODY_LIMIT=256kb\nURLENCODED_BODY_LIMIT=32kb\nRATE_LIMITING_ENABLED=${yesNo(store.features.rateLimiting)}\nRATE_LIMIT_PLAN=${store.plan.toLowerCase()}\nREDIS_URL=redis://127.0.0.1:6379\nRATE_LIMIT_MAX_IDENTITIES=10000\nAI_MAX_INPUT_TOKENS=4000\nAI_MAX_OUTPUT_TOKENS=1000\nAI_PROVIDER_TIMEOUT_MS=15000\nAI_PROVIDER_MAX_CONCURRENCY=8\nAI_INPUT_COST_MICROUSD_PER_1K=0\nAI_OUTPUT_COST_MICROUSD_PER_1K=0\nMONGODB_URI=mongodb://127.0.0.1:27017/${store.slug}?replicaSet=rs0\nACCESS_TOKEN_SECRET=replace-with-a-random-secret-at-least-32-characters\nREFRESH_TOKEN_SECRET=replace-with-a-different-random-secret-at-least-32-characters\nINVENTORY_ENABLED=${yesNo(store.features.inventory)}\nRESERVATION_LIFECYCLE_ENABLED=${yesNo(store.features.inventory)}\nADMIN_REPORTS_ENABLED=${yesNo(store.features.adminReports)}\nCHECKOUT_ENABLED=${yesNo(store.features.checkout)}\nATTACK_DEMO_ENABLED=${yesNo(store.features.attackDemo)}\nRESERVATION_TTL_MINUTES=10\nPAYMENT_CURRENCY=INR\nPAYMENT_WEBHOOK_SECRET=replace-with-a-random-secret\nADMIN_EMAIL=admin@example.test\nADMIN_PASSWORD=replace-before-use\n`;
 }
 
-function generatedCompose() {
-  return `services:\n  mongo:\n    image: mongo:7\n    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]\n    ports: ["27017:27017"]\n    volumes:\n      - mongo-data:/data/db\n    healthcheck:\n      test: ["CMD-SHELL", "mongosh --quiet --eval \\\"try { quit(rs.status().ok ? 0 : 1) } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}); quit(0) }\\\""]\n      interval: 5s\n      timeout: 5s\n      retries: 20\n  redis:\n    image: redis:7-alpine\n    command: ["redis-server", "--appendonly", "yes"]\n    ports: ["6379:6379"]\n    volumes:\n      - redis-data:/data\nvolumes:\n  mongo-data:\n  redis-data:\n`;
+function generatedCompose(includeRedis) {
+  const redisService = includeRedis ? `  redis:\n    image: redis:7-alpine\n    command: ["redis-server", "--appendonly", "yes"]\n    ports: ["6379:6379"]\n    volumes:\n      - redis-data:/data\n` : '';
+  const redisVolume = includeRedis ? '  redis-data:\n' : '';
+  return `services:\n  mongo:\n    image: mongo:7\n    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]\n    ports: ["27017:27017"]\n    volumes:\n      - mongo-data:/data/db\n    healthcheck:\n      test: ["CMD-SHELL", "mongosh --quiet --eval \\\"try { quit(rs.status().ok ? 0 : 1) } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}); quit(0) }\\\""]\n      interval: 5s\n      timeout: 5s\n      retries: 20\n${redisService}volumes:\n  mongo-data:\n${redisVolume}`;
 }
 
 const storefrontTemplate = `import { useEffect, useState } from 'react';
@@ -122,28 +124,11 @@ export default function Storefront() {
     try { const data = await api('/api/orders'); setOrders(data.orders || []); setMessage('Order history loaded.'); }
     catch (error) { setMessage(error.message); }
   }
-  async function loadRazorpay() {
-    if (window.Razorpay) return;
-    await new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Could not load the Razorpay checkout script'));
-      document.body.appendChild(script);
-    });
-  }
   async function placeDemoOrder(product) {
     try {
       if (store.features.checkout) {
         const checkout = await api('/api/checkout', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ items: [{ productId: product.id, qty: 1 }] }) });
-        if (checkout.paymentMode === 'mock') {
-          setMessage('Checkout order created in mock mode. Add Razorpay test keys in backend/.env to open the payment form.');
-          return;
-        }
-        await loadRazorpay();
-        const widget = new window.Razorpay({ key: checkout.keyId, amount: checkout.amount, currency: checkout.currency, name: store.storeName, description: product.name, order_id: checkout.razorpayOrderId, handler: () => setMessage('Payment submitted. The signed provider webhook will confirm the order.'), modal: { ondismiss: () => setMessage('Payment was closed before completion.') } });
-        widget.on('payment.failed', (event) => setMessage(event.error?.description || 'Payment failed.'));
-        widget.open();
+        setMessage('Demo checkout ' + checkout.orderId + ' created for ' + checkout.currency + ' ' + (checkout.amount / 100) + '. No payment provider is connected.');
       } else if (store.features.inventory) {
         const result = await api('/api/inventory/' + product.id + '/reserve', { method: 'POST', body: JSON.stringify({ quantity: 1 }) });
         setMessage('Stock reserved for checkout. Remaining stock: ' + result.data.remainingStock + '.');
@@ -187,13 +172,14 @@ function storefrontTheme(style) {
 
 function rootReadme(store) {
   const included = [
-    'Product CRUD API (admin protected)', `Redis-backed token-bucket rate limiting (${store.plan} allowance profile)`,
+      'Product CRUD API (admin protected)',
+    ...(store.features.rateLimiting ? [`Redis-backed token-bucket rate limiting (${store.plan} allowance profile)`] : []),
     ...(store.features.adminReports ? ['Admin user and order reports'] : []),
     ...(store.features.inventory ? ['Atomic inventory reservations and expiry (MongoDB replica set)'] : []),
-    ...(store.features.checkout ? ['Idempotent checkout and verified Razorpay webhooks'] : []),
+    ...(store.features.checkout ? ['Idempotent checkout and signed demo payment webhooks'] : []),
     ...(store.features.attackDemo ? ['Naive vs hardened concurrency attack demo'] : []),
   ];
-  return `# ${store.storeName} · ${store.plan} plan\n\nThis ZIP contains the generated storefront and backend starter configured for the **${store.plan}** plan.\n\n## Start the backend\n\n1. Install Node.js 20 or newer and Docker Compose.\n2. From \`backend/\`, copy \`.env.example\` to \`.env\` and replace the admin credentials and webhook secret.\n3. Run \`docker compose up -d\` from \`backend/\` to start MongoDB (replica set) and Redis.\n4. Run \`npm install\` and \`npm run dev\` in \`backend/\`.\n\n## Start the storefront\n\nIn another terminal, run \`npm install\` and \`npm run dev\` from \`frontend/\`, then open http://localhost:5173.\n\n## Features enabled for this plan\n\n${included.map((feature) => `- ${feature}`).join('\n')}\n\nHealth checks, auth/roles, protected order basics, and product CRUD are included in every plan. The optional server modules are disabled by default when the selected plan does not include them. This is a local demo: full tenant provisioning, billing, and production payment credentials are not included.\n`;
+  return `# ${store.storeName} · ${store.plan} plan\n\nThis ZIP contains the generated storefront and backend starter configured for the **${store.plan}** plan.\n\n## Start the backend\n\n1. Install Node.js 20 or newer and Docker Compose.\n2. From \`backend/\`, copy \`.env.example\` to \`.env\` and replace the JWT secrets, admin credentials and webhook secret.\n3. Run \`docker compose up -d\` from \`backend/\` to start MongoDB (replica set)${store.features.rateLimiting ? ' and Redis for Pro rate limiting' : ''}.\n4. Run \`npm install\` and \`npm run dev\` in \`backend/\`.\n\n## Start the storefront\n\nIn another terminal, run \`npm install\` and \`npm run dev\` from \`frontend/\`, then open http://localhost:5173.\n\n## Features enabled for this plan\n\n${included.map((feature) => `- ${feature}`).join('\n')}\n\nHealth checks, auth/roles, protected order basics, and product CRUD are included in every plan. Redis-backed rate limiting is included only in Pro. Other optional server modules are disabled by default when the selected plan does not include them. This is a local demo: full tenant provisioning, billing, and production payment credentials are not included.\n`;
 }
 
 export async function exportStore(req, res, next) {
@@ -217,7 +203,7 @@ export async function exportStore(req, res, next) {
     entries.push(...sourceEntries);
     entries.push({ path: `${root}/backend/.env.example`, content: generatedEnvironment(store) });
     entries.push({ path: `${root}/backend/config/store-config.json`, content: JSON.stringify(store, null, 2) });
-    entries.push({ path: `${root}/backend/compose.yaml`, content: generatedCompose() });
+    entries.push({ path: `${root}/backend/compose.yaml`, content: generatedCompose(store.features.rateLimiting) });
     entries.push({ path: `${root}/backend/README.md`, content: rootReadme(store) });
     const archive = createZipArchive(entries);
     res.set({

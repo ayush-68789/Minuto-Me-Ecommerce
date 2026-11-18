@@ -9,9 +9,9 @@ import { exportStore } from '../src/controllers/storeExportController.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const output = path.join(root, 'server', '.export-verification');
 const tierFeatures = {
-  Free: { adminReports: false, inventory: false, checkout: false, attackDemo: false, rateLimiting: true },
-  Basic: { adminReports: true, inventory: false, checkout: false, attackDemo: false, rateLimiting: true },
-  Plus: { adminReports: true, inventory: true, checkout: false, attackDemo: false, rateLimiting: true },
+  Free: { adminReports: false, inventory: false, checkout: false, attackDemo: false, rateLimiting: false },
+  Basic: { adminReports: true, inventory: false, checkout: false, attackDemo: false, rateLimiting: false },
+  Plus: { adminReports: true, inventory: true, checkout: false, attackDemo: false, rateLimiting: false },
   Pro: { adminReports: true, inventory: true, checkout: true, attackDemo: true, rateLimiting: true },
 };
 
@@ -101,8 +101,9 @@ for (const [plan, features] of Object.entries(tierFeatures)) {
     assert.match(env, new RegExp(`INVENTORY_ENABLED=${features.inventory}`));
     assert.match(env, new RegExp(`CHECKOUT_ENABLED=${features.checkout}`));
     assert.match(env, new RegExp(`ATTACK_DEMO_ENABLED=${features.attackDemo}`));
-    assert.match(env, /RATE_LIMITING_ENABLED=true/);
+    assert.match(env, new RegExp(`RATE_LIMITING_ENABLED=${features.rateLimiting}`));
     assert.match(env, new RegExp(`RATE_LIMIT_PLAN=${plan.toLowerCase()}`));
+    assert.equal(/\n  redis:\n/.test(read('backend/compose.yaml')), features.rateLimiting);
 
     assert.match(frontend, /store\.features\.inventory/);
     assert.match(frontend, /store\.features\.checkout/);

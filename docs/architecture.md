@@ -38,7 +38,7 @@ See [OWNERSHIP.md](../OWNERSHIP.md) for the complete member-by-member list of fe
 - `/api/orders` — minimal create/list/detail with owner-only access (M1 access rules; M5 owns checkout)
 - `/api/admin` — minimal admin-only lists (M1 access rules; M4 owns the dashboard)
 - `/api/cart`, `/api/payments` — authenticated cart and demo payment endpoints (M5)
-- Plan-specific Redis token bucket middleware is enabled only in generated backend exports (M2); the Store Studio platform itself runs without request rate limiting.
+- Redis token bucket middleware is enabled only in generated Pro backend exports (M2); Free, Basic, Plus and the Store Studio platform run without request rate limiting.
 
 Users and hashed refresh-token identifiers are persisted in MongoDB. The client keeps 15-minute access JWTs in memory and renews them with rotating 7-day refresh JWTs stored in an HttpOnly, SameSite cookie. Refresh identifiers are single-use and stored as hashes for revocation. Some legacy order/cart APIs still use in-memory stores; the inventory and checkout modules use MongoDB models.
 

@@ -3,10 +3,11 @@ import { Router } from 'express';
 import { listAllOrders, listUsers } from '../controllers/adminController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import { requireAdmin } from '../middleware/roleMiddleware.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
-router.get('/users', listUsers);
+router.get('/users', asyncHandler(listUsers));
 router.get('/orders', listAllOrders);
 
 export default router;

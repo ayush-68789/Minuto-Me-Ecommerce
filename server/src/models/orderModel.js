@@ -10,7 +10,7 @@ const schema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'reserved', 'paid', 'fulfilled', 'cancelled', 'refunded'], default: 'pending' },
   idempotencyKey: String,
   reservationIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' }],
-  razorpayOrderId: { type: String, index: true },
+  paymentOrderId: { type: String, index: true },
   paymentId: String,
   paidAt: Date,
 }, { timestamps: true });

@@ -17,8 +17,7 @@
     "express": "^4.21.2",
     "ioredis": "^6.0.0",
     "mongoose": "^9.12.1",
-    "node-cron": "^4.6.0",
-    "razorpay": "^2.9.8"
+    "node-cron": "^4.6.0"
   },
   "devDependencies": {
     "axios": "^1.21.1"

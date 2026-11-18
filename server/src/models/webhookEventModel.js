@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 
-// Webhook inbox: every provider event is stored once, keyed by its event ID.
+// Webhook inbox: each signed demo payment event is stored once by event ID.
 const schema = new mongoose.Schema({
-  provider: { type: String, default: 'razorpay' },
+  provider: { type: String, default: 'demo' },
   eventId: { type: String, required: true },
   eventType: String,
   payload: mongoose.Schema.Types.Mixed,

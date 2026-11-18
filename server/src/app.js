@@ -22,7 +22,7 @@ import { configureTrustedProxy } from './config/trustedProxy.js';
 
 const app = express();
 const enabled = (name, defaultValue = true) => process.env[name] === undefined ? defaultValue : process.env[name] === 'true';
-const rateLimitingEnabled = enabled('RATE_LIMITING_ENABLED', false);
+const rateLimitingEnabled = enabled('RATE_LIMITING_ENABLED', false) && String(process.env.RATE_LIMIT_PLAN || '').toLowerCase() === 'pro';
 configureTrustedProxy(app);
 
 app.use(cors({

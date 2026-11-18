@@ -4,6 +4,6 @@ import { naivePurchase } from './naiveController.js';
 import { attackDemoRateLimit } from '../../middleware/tokenBucketRateLimit.js';
 
 const router = Router();
-router.post('/purchase/:productId', attackDemoRateLimit, naivePurchase);
+router.post('/purchase/:productId', ...(process.env.RATE_LIMITING_ENABLED === 'true' ? [attackDemoRateLimit] : []), naivePurchase);
 
 export default router;
