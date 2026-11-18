@@ -40,6 +40,24 @@ export function processPayment(req, res) {
   res.status(200).json({ message: processed.status === 'completed' ? 'Payment processed' : 'Payment failed', payment: processed });
 }
 
+export function refundPayment(req, res) {
+  const { payment, order } = findOwnedPayment(req, req.params.id);
+  const { amount, reason } = req.body || {};
+  try {
+    const refunded = Payment.refund(payment.id, { amount, reason });
+    Order.updatePayment(order.id, {
+      paymentId: refunded.id,
+      status: refunded.status
+    });
+    if (refunded.status === 'refunded') {
+      Order.updateStatus(order.id, 'cancelled');
+    }
+    res.status(200).json({ message: 'Payment refunded successfully', payment: refunded });
+  } catch (err) {
+    throw new HttpError(400, 'refund_failed', err.message);
+  }
+}
+
 export function getPayment(req, res) {
   const { payment } = findOwnedPayment(req, req.params.id);
   res.status(200).json({ payment });
@@ -52,6 +70,9 @@ export function handleWebhook(req, res) {
   if (!result.handled) throw new HttpError(404, 'payment_not_found', 'Payment not found');
   if (result.payment.orderId && result.payment.orderId !== 'pending_checkout') {
     Order.updatePayment(result.payment.orderId, { paymentId: result.payment.id, status: result.payment.status });
+    if (result.payment.status === 'refunded') {
+      Order.updateStatus(result.payment.orderId, 'cancelled');
+    }
   }
   res.status(200).json({ message: 'Webhook processed', payment: result.payment });
 }

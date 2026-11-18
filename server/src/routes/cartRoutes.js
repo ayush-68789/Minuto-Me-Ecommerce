@@ -5,7 +5,9 @@ import {
   addItem,
   updateItem,
   removeItem,
-  clearCart
+  clearCart,
+  applyCoupon,
+  removeCoupon
 } from '../controllers/cartController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 
@@ -18,5 +20,7 @@ router.patch('/items/:productId', updateItem);
 router.put('/items/:productId', updateItem);
 router.delete('/items/:productId', removeItem);
 router.delete('/', clearCart);
+router.post('/coupon', applyCoupon);
+router.delete('/coupon', removeCoupon);
 
 export default router;
