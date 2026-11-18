@@ -106,6 +106,9 @@ for (const [plan, features] of Object.entries(tierFeatures)) {
       assert.equal(read(`backend/${authFile}`), await readFile(path.join(root, 'server', authFile), 'utf8'), `${authFile} ships unchanged in ${plan}`);
     }
     assert.match(frontend, /x-tenant-id/);
+    // The storefront source is a template literal, which silently drops single backslashes.
+    assert.ok(frontend.includes('/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/'), 'storefront email check keeps its regex escapes');
+    assert.match(frontend, /error\?\.details/, 'storefront shows validation details from the API');
     assert.match(env, new RegExp(`ADMIN_REPORTS_ENABLED=${features.adminReports}`));
     assert.match(env, new RegExp(`INVENTORY_ENABLED=${features.inventory}`));
     assert.match(env, new RegExp(`CHECKOUT_ENABLED=${features.checkout}`));
