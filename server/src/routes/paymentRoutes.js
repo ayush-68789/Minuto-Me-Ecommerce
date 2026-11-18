@@ -4,6 +4,7 @@ import {
   createPayment,
   processPayment,
   getPayment,
+  refundPayment,
   handleWebhook
 } from '../controllers/paymentController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
@@ -16,6 +17,7 @@ router.post('/webhook', verifyPaymentWebhook, handleWebhook);
 router.use(authenticate, tenantContext);
 router.post('/', createPayment);
 router.post('/:id/process', processPayment);
+router.post('/:id/refund', refundPayment);
 router.get('/:id', getPayment);
 
 export default router;

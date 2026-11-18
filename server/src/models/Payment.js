@@ -19,18 +19,22 @@ const Payment = {
       method,
       status: 'pending',
       transactionRef: randomUUID(),
+      refund: null,
       createdAt: now,
       updatedAt: now,
     };
     payments.set(payment.id, payment);
     return payment;
   },
+
   get(id) {
     return payments.get(id) || null;
   },
+
   findByOrderId(orderId) {
     return [...payments.values()].filter((payment) => payment.orderId === orderId);
   },
+
   process(id, { success = true, failureReason = null, providerDetails = {} } = {}) {
     const payment = payments.get(id);
     if (!payment) throw new Error('Payment not found');
@@ -41,18 +45,57 @@ const Payment = {
     payment.updatedAt = new Date().toISOString();
     return payment;
   },
+
+  refund(id, { amount, reason = 'Customer request' } = {}) {
+    const payment = payments.get(id);
+    if (!payment) throw new Error('Payment not found');
+    if (payment.status !== 'completed') {
+      throw new Error(`Cannot refund payment with status "${payment.status}"`);
+    }
+    const refundAmount = amount !== undefined ? Number(amount) : payment.amount;
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > payment.amount) {
+      throw new Error('Invalid refund amount');
+    }
+    payment.status = refundAmount === payment.amount ? 'refunded' : 'partially_refunded';
+    payment.refund = {
+      refundId: randomUUID(),
+      amount: refundAmount,
+      reason,
+      refundedAt: new Date().toISOString()
+    };
+    payment.updatedAt = new Date().toISOString();
+    return payment;
+  },
+
   handleWebhook({ paymentId, event = 'payment.succeeded', payload = {} }) {
     const payment = payments.get(paymentId);
     if (!payment) return { handled: false, error: 'Payment not found' };
-    if (payment.status !== 'pending') return { handled: true, payment };
-    if (event === 'payment.succeeded') payment.status = 'completed';
-    else if (event === 'payment.failed') {
+    if (payment.status !== 'pending' && event !== 'payment.refunded') return { handled: true, payment };
+
+    if (event === 'payment.succeeded') {
+      payment.status = 'completed';
+    } else if (event === 'payment.failed') {
       payment.status = 'failed';
       payment.failureReason = payload.reason || 'Webhook reported payment failure';
-    } else return { handled: false, error: 'Unsupported payment event' };
+    } else if (event === 'payment.refunded') {
+      payment.status = 'refunded';
+      payment.refund = {
+        refundId: payload.refundId || randomUUID(),
+        amount: payload.amount || payment.amount,
+        reason: payload.reason || 'Webhook reported refund',
+        refundedAt: new Date().toISOString()
+      };
+    } else {
+      return { handled: false, error: 'Unsupported payment event' };
+    }
+
     payment.updatedAt = new Date().toISOString();
     return { handled: true, payment };
   },
+
+  clear() {
+    payments.clear();
+  }
 };
 
 export default Payment;
