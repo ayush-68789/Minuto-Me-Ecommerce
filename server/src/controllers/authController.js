@@ -1,9 +1,37 @@
 // Owner: Member 1 — MVC controller for register, login, logout and current-user actions.
 import { HttpError } from '../middleware/errorHandler.js';
-import sessionModel from '../models/Session.js';
+import refreshTokenModel from '../models/RefreshToken.js';
 import userModel from '../models/User.js';
+import { ACCESS_TTL_SECONDS, createAccessToken, createRefreshToken, verifyJwt } from '../services/jwtTokens.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REFRESH_COOKIE = 'minuto_refresh';
+const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: REFRESH_COOKIE_MAX_AGE,
+};
+
+function setRefreshCookie(res, token) {
+  res.cookie(REFRESH_COOKIE, token, refreshCookieOptions);
+}
+
+function readRefreshCookie(req) {
+  const cookieHeader = req.get('cookie') || '';
+  const item = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${REFRESH_COOKIE}=`));
+  return item ? decodeURIComponent(item.slice(REFRESH_COOKIE.length + 1)) : '';
+}
+
+async function createAuthResponse(user, res, status) {
+  const accessToken = createAccessToken(user.id);
+  const refresh = createRefreshToken(user.id);
+  await refreshTokenModel.issue(refresh.claims.jti, user.id, new Date(refresh.claims.exp * 1000));
+  setRefreshCookie(res, refresh.token);
+  res.status(status).json({ user: userModel.toPublic(user), accessToken, token: accessToken, expiresIn: ACCESS_TTL_SECONDS });
+}
 
 export function checkRegistration({ name, email, password }) {
   const problems = [];
@@ -23,7 +51,7 @@ export function checkRegistration({ name, email, password }) {
 export function checkLogin({ email, password }) {
   const problems = [];
   if (typeof email !== 'string' || !email.trim()) problems.push('email is required');
-  if (typeof password !== 'string' || !password) problems.push('password is required');
+  if (typeof password !== 'string' || !password || password.length > 128) problems.push('password is required and must be at most 128 characters');
   return problems;
 }
 
@@ -34,7 +62,7 @@ export async function register(req, res) {
   if (!user) {
     throw new HttpError(409, 'email_taken', 'An account with this email already exists');
   }
-  res.status(201).json({ user: userModel.toPublic(user), token: sessionModel.create(user.id) });
+  await createAuthResponse(user, res, 201);
 }
 
 export async function login(req, res) {
@@ -43,12 +71,30 @@ export async function login(req, res) {
   if (!user) {
     throw new HttpError(401, 'invalid_credentials', 'Email or password is incorrect');
   }
-  res.status(200).json({ user: userModel.toPublic(user), token: sessionModel.create(user.id) });
+  await createAuthResponse(user, res, 200);
 }
 
-export function logout(req, res) {
-  sessionModel.revoke(req.token);
+export async function logout(req, res) {
+  const refreshToken = readRefreshCookie(req);
+  if (refreshToken) {
+    try {
+      const claims = verifyJwt(refreshToken, 'refresh');
+      await refreshTokenModel.consume(claims.jti, claims.sub);
+    } catch { /* Expired or invalid refresh tokens are simply cleared. */ }
+  }
+  res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions, maxAge: undefined });
   res.status(204).end();
+}
+
+export async function refresh(req, res) {
+  const token = readRefreshCookie(req);
+  if (!token) throw new HttpError(401, 'unauthenticated', 'Sign in to continue');
+  const claims = verifyJwt(token, 'refresh');
+  const consumed = await refreshTokenModel.consume(claims.jti, claims.sub);
+  if (!consumed) throw new HttpError(401, 'unauthenticated', 'Refresh token has already been used or revoked');
+  const user = await userModel.findById(claims.sub);
+  if (!user) throw new HttpError(401, 'unauthenticated', 'Account no longer exists');
+  await createAuthResponse(user, res, 200);
 }
 
 export function getCurrentUser(req, res) {
