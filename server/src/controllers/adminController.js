@@ -3,8 +3,9 @@
 import orderModel from '../models/Order.js';
 import userModel from '../models/User.js';
 
-export function listUsers(_req, res) {
-  res.status(200).json({ users: userModel.list().map(userModel.toPublic) });
+export async function listUsers(_req, res) {
+  const users = await userModel.list();
+  res.status(200).json({ users: users.map(userModel.toPublic) });
 }
 
 export function listAllOrders(req, res) {

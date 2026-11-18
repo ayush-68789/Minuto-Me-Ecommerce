@@ -7,7 +7,7 @@ const defaults = {
   headline: '', description: '',
   accent: '#516b54', style: 'Natural', layout: 'Editorial', plan: 'Free', planConfirmed: false, layoutConfirmed: false,
   products: [],
-  features: { auth: true, orders: true, adminReports: false, inventory: false, attackDemo: false, checkout: false },
+  features: { auth: true, orders: true, adminReports: false, inventory: false, attackDemo: false, checkout: false, rateLimiting: false },
 };
 
 function loadInitialState(storageKey) {
@@ -17,6 +17,7 @@ function loadInitialState(storageKey) {
     const plan = getPlan(saved.plan);
     const features = { ...defaults.features, ...saved.features };
     for (const key of ['adminReports', 'inventory', 'attackDemo', 'checkout']) features[key] = Boolean(plan.features[key] && features[key]);
+    features.rateLimiting = Boolean(plan.features.rateLimiting);
     return { ...defaults, ...saved, plan: plan.name, features, products: Array.isArray(saved.products) ? saved.products : [] };
   } catch { return defaults; }
 }
@@ -41,6 +42,7 @@ export function BuilderProvider({ children, user }) {
       if (!nextPlan.features[key]) features[key] = false;
       else if (!previousPlan.features[key]) features[key] = true;
     }
+    features.rateLimiting = Boolean(nextPlan.features.rateLimiting);
     const next = { ...current, plan: nextPlan.name, planConfirmed: true, features };
     persist(next);
     return next;

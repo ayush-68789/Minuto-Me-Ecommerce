@@ -15,7 +15,7 @@ import validateRequest from '../middleware/validateRequest.js';
 import { loginAccountRateLimit, loginIpRateLimit, registerRateLimit } from '../middleware/tokenBucketRateLimit.js';
 
 const router = Router();
-const rateLimits = (...middleware) => process.env.RATE_LIMITING_ENABLED === 'true' ? middleware : [];
+const rateLimits = (...middleware) => process.env.RATE_LIMITING_ENABLED === 'true' && String(process.env.RATE_LIMIT_PLAN || '').toLowerCase() === 'pro' ? middleware : [];
 router.post('/register', ...rateLimits(registerRateLimit), validateRequest(checkRegistration), asyncHandler(register));
 router.post('/login', ...rateLimits(loginIpRateLimit, loginAccountRateLimit), validateRequest(checkLogin), asyncHandler(login));
 router.post('/refresh', asyncHandler(refresh));

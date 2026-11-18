@@ -13,8 +13,8 @@ export const checkout = async (req, res) => {
 
 // NAIVE on purpose: no signature check, no event-ID dedup.
 export const webhook = async (req, res) => {
-  const p = req.body.payload.payment.entity;
-  await NaivePayment.create({ paymentId: p.id, orderRef: p.order_id, amount: p.amount });
-  await NaiveOrder.updateOne({ razorpayOrderId: p.order_id }, { status: 'paid' });
+  const payment = req.body.data;
+  await NaivePayment.create({ paymentId: payment.paymentId, orderRef: payment.orderId, amount: payment.amount });
+  await NaiveOrder.updateOne({ paymentOrderId: payment.orderId }, { status: 'paid' });
   res.json({ ok: true });
 };

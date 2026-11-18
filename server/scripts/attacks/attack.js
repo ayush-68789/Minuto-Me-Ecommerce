@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 
 const BASE = process.env.BASE_URL || 'http://localhost:5000';
-const SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || 'test_webhook_secret';
+const SECRET = process.env.PAYMENT_WEBHOOK_SECRET || 'test_webhook_secret';
 const N = 10;
 const TENANT_ID = process.env.TENANT_ID || 'demo-tenant-a';
 
@@ -35,7 +35,7 @@ const burst = (fn) => Promise.all(Array.from({ length: N }, fn));
 
 const eventBody = (orderId, paymentId, amount) => JSON.stringify({
   event: 'payment.captured',
-  payload: { payment: { entity: { id: paymentId, order_id: orderId, amount, status: 'captured' } } },
+  data: { orderId, paymentId, amount },
 });
 
 export async function run() {
@@ -68,10 +68,10 @@ export async function run() {
   const co = await post('/api/checkout', { items }, { ...authHeaders, 'Idempotency-Key': crypto.randomUUID() });
   if (co.status !== 201) throw new Error('Checkout failed: ' + JSON.stringify(co));
   const payId = 'pay_' + crypto.randomBytes(6).toString('hex');
-  const body = eventBody(co.json.razorpayOrderId, payId, co.json.amount);
-  const evHeaders = { 'x-razorpay-signature': sign(body), 'x-razorpay-event-id': 'evt_' + payId };
+  const body = eventBody(co.json.paymentOrderId, payId, co.json.amount);
+  const evHeaders = { 'x-payment-signature': sign(body), 'x-payment-event-id': 'evt_' + payId };
   await burst(() => post('/api/naive/webhook', body));
-  await burst(() => post('/api/webhooks/razorpay', body, evHeaders));
+  await burst(() => post('/api/webhooks/payments', body, evHeaders));
   const nPay = await db.collection('naivepayments').countDocuments({ paymentId: payId });
   const hPay = await db.collection('payments').countDocuments({ providerPaymentId: payId });
   results.push({
@@ -83,12 +83,12 @@ export async function run() {
 
   // Attack 3: forged webhook (bad signature)
   const co2 = await post('/api/checkout', { items }, { ...authHeaders, 'Idempotency-Key': crypto.randomUUID() });
-  const forged = eventBody(co2.json.razorpayOrderId, 'pay_forged', co2.json.amount);
+  const forged = eventBody(co2.json.paymentOrderId, 'pay_forged', co2.json.amount);
   const nF = await post('/api/naive/webhook', forged);
-  const hF = await post('/api/webhooks/razorpay', forged,
-    { 'x-razorpay-signature': 'deadbeef', 'x-razorpay-event-id': 'evt_forged_' + Date.now() });
+  const hF = await post('/api/webhooks/payments', forged,
+    { 'x-payment-signature': 'deadbeef', 'x-payment-event-id': 'evt_forged_' + Date.now() });
   const stillPending = await db.collection('orders')
-    .countDocuments({ razorpayOrderId: co2.json.razorpayOrderId, status: 'pending' });
+    .countDocuments({ paymentOrderId: co2.json.paymentOrderId, status: 'pending' });
   results.push({
     Attack: 'Forged webhook',
     Naive: `accepted (${nF.status})`,

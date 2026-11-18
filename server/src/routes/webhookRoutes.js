@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { handleRazorpay } from '../controllers/webhookController.js';
+import { handlePaymentWebhook } from '../controllers/webhookController.js';
 
 const router = Router();
-router.post('/razorpay', handleRazorpay);
+router.post('/payments', handlePaymentWebhook);
 
 export default router;

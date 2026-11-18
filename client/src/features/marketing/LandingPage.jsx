@@ -10,7 +10,7 @@ const capabilities = [
   { color: 'sage', icon: '▧', title: 'Design as you go', copy: 'Choose from distinct storefront layouts and see your changes in a live desktop or mobile preview.' },
   { color: 'sky', icon: '▦', title: 'Start with your products', copy: 'Shape a catalog with product details, pricing and imagery, ready to appear in your storefront.' },
   { color: 'coral', icon: '◇', title: 'Choose only what you need', copy: 'Compare Free, Basic, Plus and Pro. Each tier exports the backend modules already implemented for it.' },
-  { color: 'amber', icon: '⌁', title: 'Grow on solid foundations', copy: 'Start with authentication, product CRUD, protected orders and Redis-backed rate limiting.' },
+  { color: 'amber', icon: '⌁', title: 'Grow on solid foundations', copy: 'Start with authentication, product CRUD and protected orders. Pro adds Redis-backed API rate limiting.' },
 ];
 
 export default function LandingPage() {

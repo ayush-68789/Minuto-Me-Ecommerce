@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Order from '../models/orderModel.js';
-import { createPaymentOrder } from '../utils/razorpay.js';
+import { randomUUID } from 'node:crypto';
 import { releaseReservations, reserveStock } from '../modules/inventory/inventoryService.js';
 
 const bad = (res, status, code, message) => res.status(status).json({ error: { code, message } });
@@ -55,17 +55,16 @@ export const checkout = async (req, res) => {
       idempotencyKey: req.get('Idempotency-Key'),
       reservationIds,
     });
-    const paymentOrder = await createPaymentOrder({ amount: total, receipt: String(order._id) });
-    order.razorpayOrderId = paymentOrder.id;
+    const paymentOrderId = `demo_${randomUUID()}`;
+    order.paymentOrderId = paymentOrderId;
     await order.save();
     return res.status(201).json({
       orderId: order._id,
-      razorpayOrderId: paymentOrder.id,
+      paymentOrderId,
       amount: total,
       currency: process.env.PAYMENT_CURRENCY || 'INR',
-      keyId: process.env.RAZORPAY_KEY_ID || 'mock',
       reservationIds,
-      paymentMode: process.env.RAZORPAY_KEY_ID ? 'razorpay-test' : 'mock',
+      paymentMode: 'demo',
     });
   } catch (error) {
     if (reservationIds.length) {

@@ -1,6 +1,8 @@
 node_modules/
 client/dist/
 server/.env
+server/.local-mongodb/
+server/.local-mongodb-rs0/
 client/.env
 .env
 coverage/

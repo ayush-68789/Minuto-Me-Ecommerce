@@ -48,7 +48,7 @@ This is a local payment simulation, not a live payment provider integration. Pay
 
 ## Rate limiting (M2)
 
-The API uses atomic Redis Lua token buckets shared across Express instances. `GET /api/health*` remains exempt so health probes work during a Redis outage; other API paths fail closed with `503 rate_limit_unavailable` if Redis cannot enforce the limit. Global and trusted-tenant checks run before JSON/urlencoded body parsing. Raw payment webhooks also have their own IP bucket, and the intentionally naive attack-demo handlers have explicit route-level IP buckets.
+Generated Pro backends use atomic Redis Lua token buckets shared across Express instances. Free, Basic, Plus and the Store Studio platform leave `RATE_LIMITING_ENABLED=false` and do not need Redis. In Pro, `GET /api/health*` remains exempt so health probes work during a Redis outage; other API paths fail closed with `503 rate_limit_unavailable` if Redis cannot enforce the limit. Global and trusted-tenant checks run before JSON/urlencoded body parsing. Raw payment webhooks also have their own IP bucket, and the intentionally naive attack-demo handlers have explicit route-level IP buckets.
 
 | Bucket | Scope | Capacity | Refill |
 |---|---|---:|---:|
@@ -66,7 +66,7 @@ The tenant limiter never uses the caller's `x-tenant-id` header. Member 5's trus
 
 Express proxy trust is disabled by default. Set `TRUST_PROXY_CIDRS` to a comma-separated allowlist of the exact reverse proxy IPs/CIDRs. Do not trust an arbitrary hop count or accept forwarded headers from direct clients; `req.ip` is only trusted behind configured proxies.
 
-Request bodies default to 256 KB JSON and 32 KB URL-encoded. The raw Razorpay webhook body is capped at 100 KB. Future file routes should use `validateUploadedFiles` after an in-memory multipart parser: maximum five files, 5 MB each, JPEG/PNG/WebP MIME and magic-byte checks.
+Request bodies default to 256 KB JSON and 32 KB URL-encoded. Signed demo payment webhook bodies are capped at 100 KB. Future file routes should use `validateUploadedFiles` after an in-memory multipart parser: maximum five files, 5 MB each, JPEG/PNG/WebP MIME and magic-byte checks.
 
 AI routes are not implemented yet. Future authenticated AI handlers must mount `aiQuota` after auth and the server-resolved tenant middleware, then call `createAiProviderGovernor` with the provider adapter. Defaults cap input/output tokens, apply per-IP/user/tenant hourly token buckets, bound distributed provider concurrency, abort timed-out requests, and aggregate token/cost usage. Configure provider cost per 1,000 tokens with the `AI_*_COST_MICROUSD_PER_1K` environment values; zero means cost is not estimated. No AI provider is called by this demo today.
 

@@ -6,10 +6,11 @@ import { requireAdmin } from '../middleware/roleMiddleware.js';
 import { checkoutAccountRateLimit, checkoutIpRateLimit } from '../middleware/tokenBucketRateLimit.js';
 
 const router = Router();
+const rateLimits = (...middleware) => process.env.RATE_LIMITING_ENABLED === 'true' && String(process.env.RATE_LIMIT_PLAN || '').toLowerCase() === 'pro' ? middleware : [];
 router.use(authenticate);
 router.get('/', listOrders);
-router.post('/', checkoutIpRateLimit, checkoutAccountRateLimit, createOrder);
-router.post('/checkout', checkoutIpRateLimit, checkoutAccountRateLimit, createOrder);
+router.post('/', ...rateLimits(checkoutIpRateLimit, checkoutAccountRateLimit), createOrder);
+router.post('/checkout', ...rateLimits(checkoutIpRateLimit, checkoutAccountRateLimit), createOrder);
 router.patch('/:orderId/status', requireAdmin, updateOrderStatus);
 router.get('/:orderId', getOrder);
 

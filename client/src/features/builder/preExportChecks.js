@@ -9,7 +9,7 @@ const planModules = {
   Free: ['Product CRUD, authentication, protected orders and health checks'],
   Basic: ['Admin user and order reports'],
   Plus: ['Atomic inventory reservations and expiry'],
-  Pro: ['Idempotent checkout and verified payment webhooks', 'Concurrency attack demo'],
+  Pro: ['Idempotent checkout and signed demo payment events', 'Concurrency attack demo'],
 };
 
 function check(id, title, detail, status) { return { id, title, detail, status }; }
@@ -103,7 +103,7 @@ export async function runPreExportChecks(store) {
     const health = await checkBackend();
     checks.push(check('backend', 'Backend health', `${health.service || 'API'} responded with status OK.`, 'passed'));
   } catch (error) {
-    checks.push(check('backend', 'Backend health', `${error.message} Start the API and Redis, then run checks again.`, 'failed'));
+    checks.push(check('backend', 'Backend health', `${error.message} Start the API${getPlan(store.plan).features.rateLimiting ? ' and Redis for Pro' : ''}, then run checks again.`, 'failed'));
     return { passed: false, checks, archive: null };
   }
 
@@ -112,7 +112,7 @@ export async function runPreExportChecks(store) {
     const expectedFeatures = {
       auth: store.features?.auth !== false,
       orders: store.features?.orders !== false,
-      ...Object.fromEntries(['adminReports', 'inventory', 'checkout', 'attackDemo'].map((key) => [key, Boolean(getPlan(store.plan).features[key] && store.features?.[key] !== false)])),
+      ...Object.fromEntries(['adminReports', 'inventory', 'checkout', 'attackDemo', 'rateLimiting'].map((key) => [key, Boolean(getPlan(store.plan).features[key] && store.features?.[key] !== false)])),
     };
     if (archive.plan !== store.plan) throw new Error(`The API packaged ${archive.plan || 'an unknown'} plan instead of ${store.plan}.`);
     if (archive.layout !== store.layout) throw new Error(`The API packaged ${archive.layout || 'an unknown'} layout instead of ${store.layout}.`);

@@ -7,18 +7,26 @@ const positiveInteger = (value, fallback, max = 1000000) => {
 const activeIdentityLimit = positiveInteger(process.env.RATE_LIMIT_MAX_IDENTITIES, 10000, 100000);
 const aiMaxInputTokens = positiveInteger(process.env.AI_MAX_INPUT_TOKENS, 4000, 100000);
 const aiMaxOutputTokens = positiveInteger(process.env.AI_MAX_OUTPUT_TOKENS, 1000, 32000);
+const rateLimitPlan = String(process.env.RATE_LIMIT_PLAN || 'basic').toLowerCase();
+const planMultipliers = Object.freeze({ free: 0.5, basic: 1, plus: 2, pro: 4 });
+const rateMultiplier = planMultipliers[rateLimitPlan] || planMultipliers.basic;
+const forPlan = (capacity, refillRate, extra = {}) => Object.freeze({
+  capacity: Math.max(1, Math.round(capacity * rateMultiplier)),
+  refillRate: Math.max(1 / 60, refillRate * rateMultiplier),
+  ...extra,
+});
 
 export const rateLimitConfig = Object.freeze({
-  global: Object.freeze({ capacity: 120, refillRate: 2, maxActiveKeys: activeIdentityLimit }),
-  tenant: Object.freeze({ capacity: 600, refillRate: 10, maxActiveKeys: activeIdentityLimit }),
+  global: forPlan(120, 2, { maxActiveKeys: activeIdentityLimit }),
+  tenant: forPlan(600, 10, { maxActiveKeys: activeIdentityLimit }),
   loginIp: Object.freeze({ capacity: 10, refillRate: 1 / 30 }),
   // Account attempts are scoped to account + source IP. The IP bucket remains
   // independently enforced, while one hostile source cannot lock out a victim globally.
   loginAccount: Object.freeze({ capacity: 10, refillRate: 1 / 30 }),
   registerIp: Object.freeze({ capacity: 20, refillRate: 1 / 15 }),
-  checkoutIp: Object.freeze({ capacity: 10, refillRate: 1 / 15 }),
-  checkoutAccount: Object.freeze({ capacity: 8, refillRate: 1 / 30 }),
-  webhookIp: Object.freeze({ capacity: 60, refillRate: 1 }),
+  checkoutIp: forPlan(10, 1 / 15),
+  checkoutAccount: forPlan(8, 1 / 30),
+  webhookIp: forPlan(60, 1),
   aiIp: Object.freeze({ capacity: 10000, refillRate: 10000 / 3600, maxActiveKeys: activeIdentityLimit }),
   aiUser: Object.freeze({ capacity: 30000, refillRate: 30000 / 3600, maxActiveKeys: activeIdentityLimit }),
   aiTenant: Object.freeze({ capacity: 300000, refillRate: 300000 / 3600, maxActiveKeys: activeIdentityLimit }),
