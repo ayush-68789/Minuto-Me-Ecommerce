@@ -13,30 +13,38 @@ import productRoutes from './routes/productRoutes.js';
 import storeExportRoutes from './routes/storeExportRoutes.js';
 import checkoutRoutes from './routes/checkoutRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
+import rateLimitMetricsRoutes from './routes/rateLimitMetricsRoutes.js';
 import inventoryNaiveRoutes from './modules/naive/naiveRoutes.js';
 import paymentNaiveRoutes from './routes/naiveRoutes.js';
 import tenantContext from './middleware/tenantContext.js';
-import { globalRateLimit, tenantRateLimit } from './middleware/tokenBucketRateLimit.js';
+import { globalRateLimit, tenantRateLimit, webhookIpRateLimit } from './middleware/tokenBucketRateLimit.js';
+import { configureTrustedProxy } from './config/trustedProxy.js';
 
 const app = express();
 const enabled = (name, defaultValue = true) => process.env[name] === undefined ? defaultValue : process.env[name] === 'true';
-const trustedProxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
-if (Number.isInteger(trustedProxyHops) && trustedProxyHops > 0) app.set('trust proxy', trustedProxyHops);
+configureTrustedProxy(app);
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
-if (enabled('CHECKOUT_ENABLED')) app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '100kb' }), webhookRoutes);
+app.use('/api/health', healthRoutes);
+
+// Apply IP and trusted-tenant limits before parsing attacker-controlled bodies.
+app.use('/api', tenantContext, globalRateLimit, tenantRateLimit);
+
+// Webhooks need raw bytes for HMAC checks, and receive a separate IP bucket too.
+if (enabled('CHECKOUT_ENABLED')) app.use('/api/webhooks', webhookIpRateLimit, express.raw({ type: 'application/json', limit: '100kb' }), webhookRoutes);
+
 app.use(express.json({
-  limit: '1mb',
+  limit: process.env.JSON_BODY_LIMIT || '256kb',
   verify: (req, _res, buffer) => { req.rawBody = Buffer.from(buffer); },
 }));
-app.use('/api/health', healthRoutes);
+app.use(express.urlencoded({ extended: false, limit: process.env.URLENCODED_BODY_LIMIT || '32kb' }));
 app.use('/api/store-builder', storeExportRoutes);
-app.use('/api', tenantContext, globalRateLimit, tenantRateLimit);
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin/products', productRoutes);
+app.use('/api/admin/rate-limit-metrics', rateLimitMetricsRoutes);
 if (enabled('ADMIN_REPORTS_ENABLED')) app.use('/api/admin', adminRoutes);
 if (enabled('INVENTORY_ENABLED')) app.use('/api/inventory', inventoryRoutes);
 if (enabled('CHECKOUT_ENABLED')) app.use('/api/checkout', checkoutRoutes);

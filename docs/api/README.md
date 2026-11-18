@@ -48,17 +48,27 @@ This is a local payment simulation, not a live payment provider integration. Pay
 
 ## Rate limiting (M2)
 
-The API uses an atomic Redis Lua token bucket shared across Express instances. `GET /api/health*` remains exempt so health probes work during a Redis outage; other API paths fail closed with `503 rate_limit_unavailable` if Redis cannot enforce the limit.
+The API uses atomic Redis Lua token buckets shared across Express instances. `GET /api/health*` remains exempt so health probes work during a Redis outage; other API paths fail closed with `503 rate_limit_unavailable` if Redis cannot enforce the limit. Global and trusted-tenant checks run before JSON/urlencoded body parsing. Raw payment webhooks also have their own IP bucket, and the intentionally naive attack-demo handlers have explicit route-level IP buckets.
 
 | Bucket | Scope | Capacity | Refill |
 |---|---|---:|---:|
 | Global | Client IP | 120 | 2 tokens/sec |
-| Tenant | `x-tenant-id` | 600 | 10 tokens/sec |
-| Login | Client IP and normalized account hash, independently | 10 | 1 token/30 sec |
+| Tenant | server-resolved `req.tenant._id` or `req.rateLimitTenantId` | 600 | 10 tokens/sec |
+| Login | Client IP and normalized account + source IP, independently | 10 | 1 token/30 sec |
 | Registration | Client IP | 20 | 1 token/15 sec |
 | Checkout | Client IP and authenticated user, independently | 10 / 8 | 1 token/15 sec / 1 token/30 sec |
+| Payment webhook | Client IP | 60 | 1 token/sec |
+| Naive attack demos | Client IP, per demo bucket | 10 | 1 token/15 sec |
 
-When a bucket is empty, the API returns HTTP `429` with `Retry-After`, `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`. The global IP key uses Express `req.ip`; configure `TRUST_PROXY_HOPS` only for the exact trusted reverse-proxy hop count. The tenant selector currently uses a validated `x-tenant-id` header because a server-side Store resolver is not implemented yet; M2's limiter scopes quota by this selector, and M5/M1 must replace it with server-resolved tenant identity when the Store model is available.
+When a bucket is empty, the API returns HTTP `429` with `Retry-After`, `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`. Identity values are SHA-256 hashed before becoming Redis keys. Each limiter has an expiring exact identity registry capped by `RATE_LIMIT_MAX_IDENTITIES` (default 10,000); new identities share one overflow bucket after the cap is reached. `GET /api/admin/rate-limit-metrics` returns active identity counts, allow/reject totals, overflow counts and aggregate AI usage to authenticated admins.
+
+The tenant limiter never uses the caller's `x-tenant-id` header. Member 5's trusted resolver should set `req.tenant._id` (or the agreed `req.rateLimitTenantId` contract). Until that exists, requests share one conservative unresolved-tenant bucket. Product/order tenant behavior remains owned by the tenant workstream.
+
+Express proxy trust is disabled by default. Set `TRUST_PROXY_CIDRS` to a comma-separated allowlist of the exact reverse proxy IPs/CIDRs. Do not trust an arbitrary hop count or accept forwarded headers from direct clients; `req.ip` is only trusted behind configured proxies.
+
+Request bodies default to 256 KB JSON and 32 KB URL-encoded. The raw Razorpay webhook body is capped at 100 KB. Future file routes should use `validateUploadedFiles` after an in-memory multipart parser: maximum five files, 5 MB each, JPEG/PNG/WebP MIME and magic-byte checks.
+
+AI routes are not implemented yet. Future authenticated AI handlers must mount `aiQuota` after auth and the server-resolved tenant middleware, then call `createAiProviderGovernor` with the provider adapter. Defaults cap input/output tokens, apply per-IP/user/tenant hourly token buckets, bound distributed provider concurrency, abort timed-out requests, and aggregate token/cost usage. Configure provider cost per 1,000 tokens with the `AI_*_COST_MICROUSD_PER_1K` environment values; zero means cost is not estimated. No AI provider is called by this demo today.
 
 ## Run Redis locally
 

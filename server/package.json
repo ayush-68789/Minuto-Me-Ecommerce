@@ -8,7 +8,8 @@
     "start": "node server.js",
     "test": "node --test",
     "attack": "node src/modules/inventory/attackTest.js",
-    "attack:payments": "node scripts/attacks/attack.js"
+    "attack:payments": "node scripts/attacks/attack.js",
+    "attack:rate-limit": "node scripts/attacks/rateLimitMultiInstance.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -16,7 +17,7 @@
     "express": "^4.21.2",
     "ioredis": "^6.0.0",
     "mongoose": "^9.12.1",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.6.0",
     "razorpay": "^2.9.8"
   },
   "devDependencies": {
