@@ -58,6 +58,9 @@ export default function OrderDetailPage() {
   const pricing = order.pricing || { subtotal: 0, shipping: 0, tax: 0, total: 0 };
   const payment = order.payment || {};
   const shippingAddress = order.shippingAddress || {};
+  const canCancel = ['pending', 'processing', 'reserved'].includes(order.status);
+  const currencySymbol = pricing.currency === 'INR' ? '₹' : '$';
+  const fmt = (val) => `${currencySymbol}${(Number(val) || 0).toFixed(2)}`;
 
   const getStatusBadge = (status) => {
     const map = {
@@ -119,10 +122,10 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{item.title}</div>
-                    <div style={{ color: '#64748b', fontSize: '0.82rem' }}>Qty: {item.quantity} × ${Number(item.price).toFixed(2)}</div>
+                    <div style={{ color: '#64748b', fontSize: '0.82rem' }}>Qty: {item.quantity} × {fmt(item.price)}</div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>${Number(item.total).toFixed(2)}</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{fmt(item.total)}</div>
               </li>
             ))}
           </ul>
@@ -130,19 +133,25 @@ export default function OrderDetailPage() {
           <div style={{ borderTop: '1px solid #e6e8ee', marginTop: '1.25rem', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.92rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Subtotal</span>
-              <span style={{ color: '#1e293b' }}>${pricing.subtotal?.toFixed(2)}</span>
+              <span style={{ color: '#1e293b' }}>{fmt(pricing.subtotal)}</span>
             </div>
+            {pricing.discount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                <span>Discount</span>
+                <span>−{fmt(pricing.discount)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Shipping</span>
-              <span style={{ color: '#1e293b' }}>{pricing.shipping === 0 ? 'FREE' : `$${pricing.shipping?.toFixed(2)}`}</span>
+              <span style={{ color: '#1e293b' }}>{pricing.shipping === 0 ? 'FREE' : fmt(pricing.shipping)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Tax</span>
-              <span style={{ color: '#1e293b' }}>${pricing.tax?.toFixed(2)}</span>
+              <span style={{ color: '#1e293b' }}>{fmt(pricing.tax)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f3f7', paddingTop: '0.75rem', marginTop: '0.25rem', fontWeight: 800, fontSize: '1.15rem' }}>
               <span>Total Paid</span>
-              <span>${pricing.total?.toFixed(2)}</span>
+              <span>{fmt(pricing.total)}</span>
             </div>
           </div>
         </section>
