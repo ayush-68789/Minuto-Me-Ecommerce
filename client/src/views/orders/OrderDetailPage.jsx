@@ -8,8 +8,6 @@ export default function OrderDetailPage() {
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState(null);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -28,20 +26,6 @@ export default function OrderDetailPage() {
       fetchOrder();
     }
   }, [id]);
-
-  const handleCancelOrder = async () => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) return;
-    try {
-      setCancelling(true);
-      setCancelError(null);
-      const res = await orderModel.cancelOrder(id, 'Customer requested cancellation');
-      setOrderData(prev => ({ ...prev, order: res.order }));
-    } catch (err) {
-      setCancelError(err.message);
-    } finally {
-      setCancelling(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -71,15 +55,37 @@ export default function OrderDetailPage() {
 
   const order = orderData.order;
   const items = order.items || [];
-  const pricing = order.pricing || { subtotal: 0, discount: 0, shipping: 0, tax: 0, total: 0 };
+  const pricing = order.pricing || { subtotal: 0, shipping: 0, tax: 0, total: 0 };
   const payment = order.payment || {};
   const shippingAddress = order.shippingAddress || {};
-  const canCancel = ['pending', 'processing'].includes(order.status);
+  const canCancel = ['pending', 'processing', 'reserved'].includes(order.status);
+  const currencySymbol = pricing.currency === 'INR' ? '₹' : '$';
+  const fmt = (val) => `${currencySymbol}${(Number(val) || 0).toFixed(2)}`;
+
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+
+  const handleCancel = async () => {
+    if (!window.confirm('Are you sure you want to cancel this order? Active stock reservations will be restored.')) return;
+    try {
+      setCancelling(true);
+      setCancelError(null);
+      await orderModel.cancelOrder(order.id, 'Cancelled by customer on details page');
+      const refreshed = await orderModel.getOrder(order.id);
+      setOrderData(refreshed);
+    } catch (err) {
+      setCancelError(err.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const getStatusBadge = (status) => {
     const map = {
       processing: { bg: '#dcfce7', text: '#15803d', label: 'Processing' },
+      reserved: { bg: '#fef3c7', text: '#b45309', label: 'Stock Reserved' },
       paid: { bg: '#dcfce7', text: '#15803d', label: 'Paid' },
+      fulfilled: { bg: '#e0f2fe', text: '#0369a1', label: 'Fulfilled' },
       shipped: { bg: '#e0f2fe', text: '#0369a1', label: 'Shipped' },
       delivered: { bg: '#f1f5f9', text: '#0f172a', label: 'Delivered' },
       cancelled: { bg: '#fee2e2', text: '#b91c1c', label: 'Cancelled' },
@@ -97,28 +103,16 @@ export default function OrderDetailPage() {
     <main className="page" style={{ maxWidth: '850px' }}>
       <p className="eyebrow">M5 · Order Confirmation & Details</p>
 
-      {/* Confirmation / Status Banner */}
-      {order.status === 'cancelled' ? (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <div style={{ fontSize: '2.5rem' }}>🛑</div>
-          <div>
-            <h2 style={{ margin: '0 0 0.25rem 0', color: '#991b1b', fontSize: '1.25rem' }}>Order Cancelled</h2>
-            <p style={{ margin: 0, color: '#b91c1c', fontSize: '0.92rem' }}>
-              This order has been cancelled ({order.cancellation?.reason || 'Cancelled'}).
-            </p>
-          </div>
+      {/* Confirmation Top Box */}
+      <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div style={{ fontSize: '2.5rem' }}>🎉</div>
+        <div>
+          <h2 style={{ margin: '0 0 0.25rem 0', color: '#065f46', fontSize: '1.25rem' }}>Thank you for your order!</h2>
+          <p style={{ margin: 0, color: '#047857', fontSize: '0.92rem' }}>
+            We received your order and payment. A confirmation has been registered for {order.customer?.email || 'your account'}.
+          </p>
         </div>
-      ) : (
-        <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <div style={{ fontSize: '2.5rem' }}>🎉</div>
-          <div>
-            <h2 style={{ margin: '0 0 0.25rem 0', color: '#065f46', fontSize: '1.25rem' }}>Thank you for your order!</h2>
-            <p style={{ margin: 0, color: '#047857', fontSize: '0.92rem' }}>
-              We received your order and payment. A confirmation has been registered for {order.customer?.email || 'your account'}.
-            </p>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Header Info */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
@@ -130,12 +124,6 @@ export default function OrderDetailPage() {
         </div>
         <div>{getStatusBadge(order.status)}</div>
       </div>
-
-      {cancelError && (
-        <div style={{ padding: '0.75rem 1rem', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-          {cancelError}
-        </div>
-      )}
 
       {/* Order Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(240px, 1.2fr)', gap: '2rem', alignItems: 'start' }}>
@@ -154,10 +142,10 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{item.title}</div>
-                    <div style={{ color: '#64748b', fontSize: '0.82rem' }}>Qty: {item.quantity} × ${Number(item.price).toFixed(2)}</div>
+                    <div style={{ color: '#64748b', fontSize: '0.82rem' }}>Qty: {item.quantity} × {fmt(item.price)}</div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>${Number(item.total).toFixed(2)}</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{fmt(item.total)}</div>
               </li>
             ))}
           </ul>
@@ -165,25 +153,25 @@ export default function OrderDetailPage() {
           <div style={{ borderTop: '1px solid #e6e8ee', marginTop: '1.25rem', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.92rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Subtotal</span>
-              <span style={{ color: '#1e293b' }}>${pricing.subtotal?.toFixed(2)}</span>
+              <span style={{ color: '#1e293b' }}>{fmt(pricing.subtotal)}</span>
             </div>
             {pricing.discount > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
                 <span>Discount</span>
-                <span>−${pricing.discount?.toFixed(2)}</span>
+                <span>−{fmt(pricing.discount)}</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Shipping</span>
-              <span style={{ color: '#1e293b' }}>{pricing.shipping === 0 ? 'FREE' : `$${pricing.shipping?.toFixed(2)}`}</span>
+              <span style={{ color: '#1e293b' }}>{pricing.shipping === 0 ? 'FREE' : fmt(pricing.shipping)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
               <span>Tax</span>
-              <span style={{ color: '#1e293b' }}>${pricing.tax?.toFixed(2)}</span>
+              <span style={{ color: '#1e293b' }}>{fmt(pricing.tax)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f3f7', paddingTop: '0.75rem', marginTop: '0.25rem', fontWeight: 800, fontSize: '1.15rem' }}>
               <span>Total Paid</span>
-              <span>${pricing.total?.toFixed(2)}</span>
+              <span>{fmt(pricing.total)}</span>
             </div>
           </div>
         </section>
@@ -201,17 +189,6 @@ export default function OrderDetailPage() {
             </div>
           </section>
 
-          {/* Shipment Card if available */}
-          {order.shipment && (
-            <section style={{ background: '#f0f9ff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #bae6fd' }}>
-              <h3 style={{ fontSize: '1rem', marginTop: 0, marginBottom: '0.75rem', color: '#0369a1' }}>🚚 Shipment Tracking</h3>
-              <div style={{ fontSize: '0.88rem', lineHeight: 1.5, color: '#0c4a6e' }}>
-                <div><strong>Carrier:</strong> {order.shipment.carrier}</div>
-                <div><strong>Tracking:</strong> {order.shipment.trackingNumber}</div>
-              </div>
-            </section>
-          )}
-
           {/* Payment Card */}
           <section style={{ background: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e6e8ee' }}>
             <h3 style={{ fontSize: '1rem', marginTop: 0, marginBottom: '0.75rem', color: '#334155' }}>💳 Payment Info</h3>
@@ -227,13 +204,34 @@ export default function OrderDetailPage() {
             {canCancel && (
               <button
                 type="button"
-                onClick={handleCancelOrder}
                 disabled={cancelling}
-                style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.92rem' }}
+                onClick={handleCancel}
+                style={{
+                  padding: '0.75rem',
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  cursor: cancelling ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.92rem'
+                }}
               >
-                {cancelling ? 'Cancelling...' : 'Cancel Order'}
+                {cancelling ? 'Cancelling Order...' : '❌ Cancel Order'}
               </button>
             )}
+            {cancelError && (
+              <div style={{ color: '#b91c1c', fontSize: '0.82rem', textAlign: 'center', background: '#fee2e2', padding: '0.4rem', borderRadius: '4px' }}>
+                ⚠️ {cancelError}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{ padding: '0.75rem', background: '#f8fafc', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.92rem' }}
+            >
+              🖨️ Print Receipt
+            </button>
             <Link
               to="/orders"
               style={{ display: 'block', textAlign: 'center', padding: '0.75rem', background: '#172033', color: '#ffffff', borderRadius: '8px', textDecoration: 'none', fontWeight: 600, fontSize: '0.92rem' }}

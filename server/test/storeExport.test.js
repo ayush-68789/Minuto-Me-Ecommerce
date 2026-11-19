@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { inflateRawSync } from 'node:zlib';
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { exportStore } from '../src/controllers/storeExportController.js';
+import { AUTH_TEMPLATE_FILES, exportStore } from '../src/controllers/storeExportController.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const output = path.join(root, 'server', '.export-verification');
@@ -57,6 +57,11 @@ async function generate(plan) {
 
 await mkdir(output, { recursive: true });
 
+test('Store Studio runs the same auth module that the template ships', async () => {
+  const studioApp = await readFile(path.join(root, 'server', 'src', 'app.js'), 'utf8');
+  assert.match(studioApp, /app\.use\('\/api\/auth', authRoutes\)/);
+});
+
 for (const [plan, features] of Object.entries(tierFeatures)) {
   test(`${plan} export contains the matching backend and storefront`, async () => {
     const { archive, headers } = await generate(plan);
@@ -96,7 +101,14 @@ for (const [plan, features] of Object.entries(tierFeatures)) {
     assert.ok(read('backend/server.js').includes('seedConfiguredProducts'));
     assert.match(read('backend/compose.yaml'), /--replSet/);
     assert.doesNotMatch(app, /storeExportRoutes|\/api\/store-builder/);
+    assert.match(app, /app\.use\('\/api\/auth', authRoutes\)/);
+    for (const authFile of AUTH_TEMPLATE_FILES) {
+      assert.equal(read(`backend/${authFile}`), await readFile(path.join(root, 'server', authFile), 'utf8'), `${authFile} ships unchanged in ${plan}`);
+    }
     assert.match(frontend, /x-tenant-id/);
+    // The storefront source is a template literal, which silently drops single backslashes.
+    assert.ok(frontend.includes('/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/'), 'storefront email check keeps its regex escapes');
+    assert.match(frontend, /error\?\.details/, 'storefront shows validation details from the API');
     assert.match(env, new RegExp(`ADMIN_REPORTS_ENABLED=${features.adminReports}`));
     assert.match(env, new RegExp(`INVENTORY_ENABLED=${features.inventory}`));
     assert.match(env, new RegExp(`CHECKOUT_ENABLED=${features.checkout}`));

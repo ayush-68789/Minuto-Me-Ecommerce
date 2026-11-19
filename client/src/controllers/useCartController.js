@@ -33,10 +33,10 @@ export function useCartController(tenantId = 'default') {
     try {
       setError(null);
       const updated = await cartModel.addItem({
-        productId: product.id || product.productId,
+        productId: product.productId || product.id || product._id,
         title: product.title || product.name,
         price: product.price,
-        image: product.image,
+        image: product.image || product.imageUrl,
         quantity
       }, tenantId);
       setCart(updated);
@@ -107,13 +107,13 @@ export function useCartController(tenantId = 'default') {
     }
   }, [tenantId]);
 
-  // Demo helper to easily seed test products when catalog is still being developed by M3/M4
+  // Demo products seeded in MongoDB with valid ObjectIds and active stock
   const addDemoItem = useCallback(async () => {
     const demoCatalog = [
-      { id: 'prod_1', title: 'Minimalist Ceramic Mug', price: 24.00, image: '☕' },
-      { id: 'prod_2', title: 'Organic Cotton Tote Bag', price: 18.50, image: '👜' },
-      { id: 'prod_3', title: 'Desk Ambient Lamp', price: 45.00, image: '💡' },
-      { id: 'prod_4', title: 'Recycled Leather Notebook', price: 15.00, image: '📓' }
+      { id: '65f1a1b2c3d4e5f6a7b8c901', productId: '65f1a1b2c3d4e5f6a7b8c901', title: 'Minimalist Ceramic Mug', price: 24.00, image: '☕' },
+      { id: '65f1a1b2c3d4e5f6a7b8c902', productId: '65f1a1b2c3d4e5f6a7b8c902', title: 'Organic Cotton Tote Bag', price: 18.50, image: '👜' },
+      { id: '65f1a1b2c3d4e5f6a7b8c903', productId: '65f1a1b2c3d4e5f6a7b8c903', title: 'Desk Ambient Lamp', price: 45.00, image: '💡' },
+      { id: '65f1a1b2c3d4e5f6a7b8c904', productId: '65f1a1b2c3d4e5f6a7b8c904', title: 'Recycled Leather Notebook', price: 15.00, image: '📓' }
     ];
     const randomItem = demoCatalog[Math.floor(Math.random() * demoCatalog.length)];
     return await addItem(randomItem, 1);
