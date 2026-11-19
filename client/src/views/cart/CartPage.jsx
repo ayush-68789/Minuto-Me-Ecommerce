@@ -1,6 +1,6 @@
 // Owner: Member 5 — Cart page showing cart items, quantity adjustments, and totals.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../shared/components/Link.jsx';
 import useCartController from '../../controllers/useCartController.js';
 
 export default function CartPage() {

@@ -1,7 +1,8 @@
 // Shared API wiring for the builder and demo commerce modules.
 import express from 'express';
 import cors from 'cors';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { errorHandler, notFoundHandler, asyncHandler } from './middleware/errorHandler.js';
+import { listProducts, getProduct } from './controllers/productController.js';
 import adminRoutes from './routes/adminRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
@@ -48,6 +49,8 @@ app.use(express.urlencoded({ extended: false, limit: process.env.URLENCODED_BODY
 app.use('/api/store-builder', storeExportRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
+app.get('/api/products', asyncHandler(listProducts));
+app.get('/api/products/:productId', asyncHandler(getProduct));
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin/products', productRoutes);

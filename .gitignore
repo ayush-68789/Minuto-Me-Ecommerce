@@ -8,3 +8,4 @@ client/.env
 coverage/
 .DS_Store
 Thumbs.db
+server/.export-verification/

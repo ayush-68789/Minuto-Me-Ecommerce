@@ -1,6 +1,6 @@
 // Owner: Member 5 — Order history page showing customer past orders and statuses with tab filtering.
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../shared/components/Link.jsx';
 import orderModel from '../../models/orderModel.js';
 
 export default function OrderHistoryPage() {

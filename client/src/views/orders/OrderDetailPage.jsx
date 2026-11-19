@@ -1,6 +1,6 @@
 // Owner: Member 5 — Order detail page showing status, shipping address, lines, and payment.
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link } from '../../shared/components/Link.jsx';
 import orderModel from '../../models/orderModel.js';
 
 export default function OrderDetailPage() {
