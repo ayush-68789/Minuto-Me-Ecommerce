@@ -6,6 +6,11 @@ import { navigateTo } from '../shared/navigation.js';
 const BuilderWorkspace = lazy(() => import('../features/builder/BuilderWorkspace.jsx'));
 const LandingPage = lazy(() => import('../features/marketing/LandingPage.jsx'));
 const AccountPage = lazy(() => import('../features/marketing/AccountPage.jsx'));
+const ShopPage = lazy(() => import('../views/shop/ShopPage.jsx'));
+const CartPage = lazy(() => import('../views/cart/CartPage.jsx'));
+const CheckoutPage = lazy(() => import('../views/cart/CheckoutPage.jsx'));
+const OrderHistoryPage = lazy(() => import('../views/orders/OrderHistoryPage.jsx'));
+const OrderDetailPage = lazy(() => import('../views/orders/OrderDetailPage.jsx'));
 
 function usePathname() {
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -36,6 +41,11 @@ function RouteView() {
     }
   }, [path, status]);
   if (path === '/login' || path === '/register') return <Suspense fallback={<LoadingScreen />}><AccountPage mode={path.slice(1)} /></Suspense>;
+  if (path === '/shop') return <Suspense fallback={<LoadingScreen />}><ShopPage /></Suspense>;
+  if (path === '/cart') return <Suspense fallback={<LoadingScreen />}><CartPage /></Suspense>;
+  if (path === '/checkout') return <Suspense fallback={<LoadingScreen />}><CheckoutPage /></Suspense>;
+  if (path === '/orders') return <Suspense fallback={<LoadingScreen />}><OrderHistoryPage /></Suspense>;
+  if (path.startsWith('/orders/')) return <Suspense fallback={<LoadingScreen />}><OrderDetailPage /></Suspense>;
   if (path === '/studio' || path.startsWith('/studio/')) {
     if (status === 'checking') return <LoadingScreen />;
     if (status !== 'authenticated') return <LoadingScreen />;

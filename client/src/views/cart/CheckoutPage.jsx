@@ -1,5 +1,5 @@
 // Owner: Member 5 — Checkout page with customer contact, shipping address, and payment selection.
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from '../../shared/components/Link.jsx';
 import useCartController from '../../controllers/useCartController.js';
 import useCheckoutController from '../../controllers/useCheckoutController.js';
 
