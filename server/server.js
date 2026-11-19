@@ -1,5 +1,13 @@
 import 'dotenv/config';
+import dns from 'node:dns';
 import mongoose from 'mongoose';
+
+// Fix querySrv ECONNREFUSED on networks/VPNs that block SRV queries
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {
+  // Fallback to default system resolvers if locked
+}
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
