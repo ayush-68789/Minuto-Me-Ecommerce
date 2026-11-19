@@ -1,0 +1,43 @@
+{
+  "slug": "default",
+  "storeName": "Minuto Mein Store",
+  "category": "General",
+  "products": [
+    {
+      "id": "65f1a1b2c3d4e5f6a7b8c901",
+      "name": "Minimalist Ceramic Mug",
+      "price": 24.00,
+      "description": "Handcrafted stoneware ceramic mug with matte glaze.",
+      "category": "Home & Living",
+      "imageUrl": "☕",
+      "stock": 50
+    },
+    {
+      "id": "65f1a1b2c3d4e5f6a7b8c902",
+      "name": "Organic Cotton Tote Bag",
+      "price": 18.50,
+      "description": "Heavyweight unbleached organic canvas tote bag.",
+      "category": "Apparel",
+      "imageUrl": "👜",
+      "stock": 45
+    },
+    {
+      "id": "65f1a1b2c3d4e5f6a7b8c903",
+      "name": "Desk Ambient Lamp",
+      "price": 45.00,
+      "description": "Warm LED atmospheric lamp with dimmer switch.",
+      "category": "Lighting",
+      "imageUrl": "💡",
+      "stock": 30
+    },
+    {
+      "id": "65f1a1b2c3d4e5f6a7b8c904",
+      "name": "Recycled Leather Notebook",
+      "price": 15.00,
+      "description": "A5 dotted grid notebook with recycled bonded leather cover.",
+      "category": "Stationery",
+      "imageUrl": "📓",
+      "stock": 60
+    }
+  ]
+}
