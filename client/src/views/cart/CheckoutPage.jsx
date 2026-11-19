@@ -5,7 +5,7 @@ import useCheckoutController from '../../controllers/useCheckoutController.js';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, loading: cartLoading } = useCartController();
+  const { cart, loading: cartLoading, clearCart } = useCartController();
   const {
     formData,
     updateCustomer,
@@ -29,12 +29,18 @@ export default function CheckoutPage() {
   const items = cart.items || [];
   const pricing = cart.pricing || { subtotal: 0, shipping: 0, tax: 0, total: 0 };
   const hasItems = items.length > 0;
+  const currencySymbol = pricing.currency === 'INR' ? '₹' : '$';
+  const fmt = (val) => `${currencySymbol}${(Number(val) || 0).toFixed(2)}`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const order = await submitCheckout({ fromCart: true });
-    if (order && order.id) {
-      navigate(`/orders/${order.id}`);
+    const result = await submitCheckout({ items: cart.items });
+    if (result && (result.orderId || result.id)) {
+      const orderId = result.orderId || result.id;
+      if (clearCart) {
+        await clearCart().catch(() => {});
+      }
+      navigate(`/orders/${orderId}`);
     }
   };
 
@@ -189,6 +195,17 @@ export default function CheckoutPage() {
                 />
               </label>
             </div>
+
+            <label style={{ ...labelStyle, marginTop: '0.85rem' }}>
+              Special Delivery Instructions (Optional)
+              <input
+                type="text"
+                value={formData.shippingAddress.instructions || ''}
+                onChange={(e) => updateShippingAddress('instructions', e.target.value)}
+                style={inputStyle}
+                placeholder="e.g. Leave with security, ring bell #4"
+              />
+            </label>
           </section>
 
           {/* Step 3: Payment Method */}
@@ -254,36 +271,36 @@ export default function CheckoutPage() {
                 <span style={{ color: '#334155' }}>
                   {item.title} <span style={{ color: '#94a3b8' }}>× {item.quantity}</span>
                 </span>
-                <span style={{ fontWeight: 600 }}>${(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+                <span style={{ fontWeight: 600 }}>{fmt(Number(item.price) * Number(item.quantity))}</span>
               </div>
             ))}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.92rem' }}>
             <span style={{ color: '#58627a' }}>Subtotal</span>
-            <span>${pricing.subtotal?.toFixed(2)}</span>
+            <span>{fmt(pricing.subtotal)}</span>
           </div>
 
           {pricing.discount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.92rem', color: '#16a34a' }}>
               <span>Promo Discount {pricing.coupon?.code ? `(${pricing.coupon.code})` : ''}</span>
-              <span>−${pricing.discount?.toFixed(2)}</span>
+              <span>−{fmt(pricing.discount)}</span>
             </div>
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem', fontSize: '0.92rem' }}>
             <span style={{ color: '#58627a' }}>Shipping</span>
-            <span>{pricing.shipping === 0 ? <span style={{ color: '#16a34a' }}>FREE</span> : `$${pricing.shipping?.toFixed(2)}`}</span>
+            <span>{pricing.shipping === 0 ? <span style={{ color: '#16a34a' }}>FREE</span> : fmt(pricing.shipping)}</span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem', fontSize: '0.92rem' }}>
             <span style={{ color: '#58627a' }}>Estimated Tax</span>
-            <span>${pricing.tax?.toFixed(2)}</span>
+            <span>{fmt(pricing.tax)}</span>
           </div>
 
           <div style={{ borderTop: '1px solid #e6e8ee', paddingTop: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 800 }}>
             <span>Total</span>
-            <span>${pricing.total?.toFixed(2)}</span>
+            <span>{fmt(pricing.total)}</span>
           </div>
 
           <button
@@ -301,7 +318,7 @@ export default function CheckoutPage() {
               cursor: submitting ? 'not-allowed' : 'pointer'
             }}
           >
-            {submitting ? 'Processing Payment...' : `Place Order · $${pricing.total?.toFixed(2)}`}
+            {submitting ? 'Processing Payment...' : `Place Order · ${fmt(pricing.total)}`}
           </button>
 
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>

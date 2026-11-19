@@ -161,7 +161,9 @@ export default function OrderHistoryPage() {
                     </div>
                     <div>
                       <div style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</div>
-                      <div style={{ fontWeight: 700, color: '#0f172a' }}>${order.pricing?.total?.toFixed(2)}</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a' }}>
+                        {order.pricing?.currency === 'INR' ? '₹' : '$'}{(order.pricing?.total || 0).toFixed(2)}
+                      </div>
                     </div>
                   </div>
 
