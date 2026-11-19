@@ -91,7 +91,10 @@ export const orderModel = {
   async cancelOrder(id, reason = 'Cancelled by customer', tenantId = 'default') {
     const res = await fetch(`/api/orders/${encodeURIComponent(id)}/cancel`, {
       method: 'POST',
-      headers: getHeaders(tenantId),
+      headers: {
+        ...getHeaders(tenantId),
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ reason })
     });
 

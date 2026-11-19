@@ -62,10 +62,30 @@ export default function OrderDetailPage() {
   const currencySymbol = pricing.currency === 'INR' ? '₹' : '$';
   const fmt = (val) => `${currencySymbol}${(Number(val) || 0).toFixed(2)}`;
 
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+
+  const handleCancel = async () => {
+    if (!window.confirm('Are you sure you want to cancel this order? Active stock reservations will be restored.')) return;
+    try {
+      setCancelling(true);
+      setCancelError(null);
+      await orderModel.cancelOrder(order.id, 'Cancelled by customer on details page');
+      const refreshed = await orderModel.getOrder(order.id);
+      setOrderData(refreshed);
+    } catch (err) {
+      setCancelError(err.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const map = {
       processing: { bg: '#dcfce7', text: '#15803d', label: 'Processing' },
+      reserved: { bg: '#fef3c7', text: '#b45309', label: 'Stock Reserved' },
       paid: { bg: '#dcfce7', text: '#15803d', label: 'Paid' },
+      fulfilled: { bg: '#e0f2fe', text: '#0369a1', label: 'Fulfilled' },
       shipped: { bg: '#e0f2fe', text: '#0369a1', label: 'Shipped' },
       delivered: { bg: '#f1f5f9', text: '#0f172a', label: 'Delivered' },
       cancelled: { bg: '#fee2e2', text: '#b91c1c', label: 'Cancelled' },
@@ -181,6 +201,30 @@ export default function OrderDetailPage() {
 
           {/* Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {canCancel && (
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleCancel}
+                style={{
+                  padding: '0.75rem',
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  cursor: cancelling ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.92rem'
+                }}
+              >
+                {cancelling ? 'Cancelling Order...' : '❌ Cancel Order'}
+              </button>
+            )}
+            {cancelError && (
+              <div style={{ color: '#b91c1c', fontSize: '0.82rem', textAlign: 'center', background: '#fee2e2', padding: '0.4rem', borderRadius: '4px' }}>
+                ⚠️ {cancelError}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => window.print()}
