@@ -1,4 +1,4 @@
-// Owner: Member 5 — Checkout React controller hook for form state, validation, and submission.
+// Owner: Member 5 — Checkout React controller hook aligned with hardened /api/checkout.
 import { useState, useCallback } from 'react';
 import orderModel from '../models/orderModel.js';
 
@@ -53,7 +53,7 @@ export function useCheckoutController(initialValues = {}) {
     return null;
   }, [formData]);
 
-  const submitCheckout = useCallback(async ({ tenantId = 'default', fromCart = true } = {}) => {
+  const submitCheckout = useCallback(async ({ tenantId = 'default', items = [] } = {}) => {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
@@ -65,14 +65,14 @@ export function useCheckoutController(initialValues = {}) {
       setError(null);
 
       const result = await orderModel.checkout({
+        items,
         customer: formData.customer,
         shippingAddress: formData.shippingAddress,
-        paymentMethod: formData.paymentMethod,
-        fromCart
+        paymentMethod: formData.paymentMethod
       }, tenantId);
 
-      setCompletedOrder(result.order);
-      return result.order;
+      setCompletedOrder(result);
+      return result;
     } catch (err) {
       setError(err.message);
       return null;

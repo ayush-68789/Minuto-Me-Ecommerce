@@ -5,7 +5,7 @@ import useCheckoutController from '../../controllers/useCheckoutController.js';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, loading: cartLoading } = useCartController();
+  const { cart, loading: cartLoading, clearCart } = useCartController();
   const {
     formData,
     updateCustomer,
@@ -32,9 +32,13 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const order = await submitCheckout({ fromCart: true });
-    if (order && order.id) {
-      navigate(`/orders/${order.id}`);
+    const result = await submitCheckout({ items: cart.items });
+    if (result && (result.orderId || result.id)) {
+      const orderId = result.orderId || result.id;
+      if (clearCart) {
+        await clearCart().catch(() => {});
+      }
+      navigate(`/orders/${orderId}`);
     }
   };
 
