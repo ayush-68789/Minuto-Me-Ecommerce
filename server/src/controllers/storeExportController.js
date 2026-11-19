@@ -6,6 +6,19 @@ import { createZipArchive } from '../utils/zipArchive.js';
 import { HttpError } from '../middleware/errorHandler.js';
 
 const projectRoot = fileURLToPath(new URL('../../../', import.meta.url));
+
+// Auth is a core module of the store template: every plan's backend ships these files, and Store
+// Studio runs the same files for its own sign-in, so there is one copy of the auth code.
+export const AUTH_TEMPLATE_FILES = Object.freeze([
+  'src/routes/authRoutes.js',
+  'src/controllers/authController.js',
+  'src/middleware/authMiddleware.js',
+  'src/middleware/roleMiddleware.js',
+  'src/models/User.js',
+  'src/models/RefreshToken.js',
+  'src/services/jwtTokens.js',
+]);
+
 async function bundledBackendFiles() {
   const result = ['server.js', 'package.json'];
   async function walk(directory, prefix = '') {
@@ -19,6 +32,9 @@ async function bundledBackendFiles() {
   }
   await walk('src', 'src');
   await walk('scripts', 'scripts');
+  // A store without auth would expose its order and admin routes, so refuse to build one.
+  const missing = AUTH_TEMPLATE_FILES.filter((file) => !result.includes(file));
+  if (missing.length) throw new HttpError(500, 'export_source_missing', `The auth template is missing: ${missing.join(', ')}`);
   return result;
 }
 
@@ -106,17 +122,29 @@ export default function Storefront() {
     if (!localStorage.getItem(customerKey)) localStorage.setItem(customerKey, crypto.randomUUID());
     const response = await fetch(apiBase + path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', 'x-tenant-id': store.slug, 'x-customer-id': localStorage.getItem(customerKey), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers } });
     const data = response.status === 204 ? null : await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || 'Request failed');
+    // Validation errors list each problem in details; show those rather than the generic message.
+    if (!response.ok) throw new Error(data?.error?.details?.length ? 'Please check: ' + data.error.details.join('; ') + '.' : data?.error?.message || 'Request failed');
     return data;
   }
   useEffect(() => { api('/api/health').then(() => setStatus('Backend connected')).catch(() => setStatus('Backend unavailable')); let timer; let active = true; const renew = () => api('/api/auth/refresh', { method: 'POST' }).then(data => { if (active) { setToken(data.accessToken); timer = setTimeout(renew, Math.max(1000, (data.expiresIn - 60) * 1000)); } }).catch(() => { if (active) setToken(''); }); renew(); return () => { active = false; clearTimeout(timer); }; }, []);
+  function accountProblems(registering) {
+    const problems = [];
+    if (registering && !name.trim()) problems.push('enter your name');
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim())) problems.push('enter a valid email address, like you@example.com');
+    if (registering ? password.length < 8 || password.length > 128 : !password) problems.push(registering ? 'use a password of 8 to 128 characters' : 'enter your password');
+    return problems;
+  }
   async function signIn(event) {
     event.preventDefault(); setMessage('');
+    const problems = accountProblems(false);
+    if (problems.length) return setMessage('Please ' + problems.join(' and ') + '.');
     try { const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); setToken(data.accessToken); setMessage('Signed in.'); }
     catch (error) { setMessage(error.message); }
   }
   async function signUp(event) {
     event.preventDefault(); setMessage('');
+    const problems = accountProblems(true);
+    if (problems.length) return setMessage('Please ' + problems.join(' and ') + '.');
     try { const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }); setToken(data.accessToken); setMessage('Account created.'); }
     catch (error) { setMessage(error.message); }
   }
