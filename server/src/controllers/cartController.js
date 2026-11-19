@@ -36,3 +36,21 @@ export function clearCart(req, res) {
   const cart = Cart.clear(req.tenantId, req.user.id);
   res.status(200).json({ cart, message: 'Cart cleared' });
 }
+
+export function applyCoupon(req, res) {
+  const code = req.body?.code || req.body?.couponCode;
+  if (!code || typeof code !== 'string' || !code.trim()) {
+    throw new HttpError(400, 'invalid_coupon', 'Coupon code is required');
+  }
+  try {
+    const cart = Cart.applyCoupon(req.tenantId, req.user.id, code);
+    res.status(200).json({ cart, message: `Coupon "${code.toUpperCase().trim()}" applied successfully` });
+  } catch (error) {
+    throw new HttpError(400, 'coupon_error', error.message);
+  }
+}
+
+export function removeCoupon(req, res) {
+  const cart = Cart.removeCoupon(req.tenantId, req.user.id);
+  res.status(200).json({ cart, message: 'Coupon removed from cart' });
+}

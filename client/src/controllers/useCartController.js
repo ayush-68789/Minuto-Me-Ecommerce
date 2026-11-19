@@ -5,11 +5,12 @@ import cartModel from '../models/cartModel.js';
 export function useCartController(tenantId = 'default') {
   const [cart, setCart] = useState({
     items: [],
-    pricing: { subtotal: 0, shipping: 0, tax: 0, total: 0, currency: 'USD' },
+    pricing: { subtotal: 0, discount: 0, coupon: null, shipping: 0, tax: 0, total: 0, currency: 'USD' },
     itemCount: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [couponError, setCouponError] = useState(null);
 
   const refreshCart = useCallback(async () => {
     try {
@@ -82,6 +83,30 @@ export function useCartController(tenantId = 'default') {
     }
   }, [tenantId]);
 
+  const applyCoupon = useCallback(async (code) => {
+    try {
+      setCouponError(null);
+      const updated = await cartModel.applyCoupon(code, tenantId);
+      setCart(updated);
+      return updated;
+    } catch (err) {
+      setCouponError(err.message);
+      throw err;
+    }
+  }, [tenantId]);
+
+  const removeCoupon = useCallback(async () => {
+    try {
+      setCouponError(null);
+      const updated = await cartModel.removeCoupon(tenantId);
+      setCart(updated);
+      return updated;
+    } catch (err) {
+      setCouponError(err.message);
+      throw err;
+    }
+  }, [tenantId]);
+
   // Demo helper to easily seed test products when catalog is still being developed by M3/M4
   const addDemoItem = useCallback(async () => {
     const demoCatalog = [
@@ -98,11 +123,14 @@ export function useCartController(tenantId = 'default') {
     cart,
     loading,
     error,
+    couponError,
     refreshCart,
     addItem,
     updateQuantity,
     removeItem,
     clearCart,
+    applyCoupon,
+    removeCoupon,
     addDemoItem
   };
 }

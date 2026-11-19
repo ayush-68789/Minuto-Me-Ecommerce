@@ -68,6 +68,33 @@ export const cartModel = {
     }
     const data = await res.json();
     return data.cart;
+  },
+
+  async applyCoupon(code, tenantId = 'default') {
+    const res = await fetch('/api/cart/coupon', {
+      method: 'POST',
+      headers: getHeaders(tenantId),
+      body: JSON.stringify({ code })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || `Failed to apply coupon (${res.status})`);
+    }
+    const data = await res.json();
+    return data.cart;
+  },
+
+  async removeCoupon(tenantId = 'default') {
+    const res = await fetch('/api/cart/coupon', {
+      method: 'DELETE',
+      headers: getHeaders(tenantId)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || `Failed to remove coupon (${res.status})`);
+    }
+    const data = await res.json();
+    return data.cart;
   }
 };
 
