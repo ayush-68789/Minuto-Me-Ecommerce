@@ -1,102 +1,147 @@
-// Owner: Member 1 — MVC controller for register, login, logout and current-user actions.
-import { HttpError } from '../middleware/errorHandler.js';
-import refreshTokenModel from '../models/RefreshToken.js';
-import userModel from '../models/User.js';
-import { ACCESS_TTL_SECONDS, createAccessToken, createRefreshToken, verifyJwt } from '../services/jwtTokens.js';
+// Owner: M1
+import User from '../models/User.js';
+import generateToken from '../utils/generateToken.js';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const REFRESH_COOKIE = 'minuto_refresh';
-const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-const refreshCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-  path: '/',
-  maxAge: REFRESH_COOKIE_MAX_AGE,
+const COOKIE_NAME = 'token';
+const COOKIE_OPTIONS = {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
-function setRefreshCookie(res, token) {
-  res.cookie(REFRESH_COOKIE, token, refreshCookieOptions);
+const hasJwtSecret = () => {
+    return Boolean(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'change_me');
 }
 
-function readRefreshCookie(req) {
-  const cookieHeader = req.get('cookie') || '';
-  const item = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${REFRESH_COOKIE}=`));
-  return item ? decodeURIComponent(item.slice(REFRESH_COOKIE.length + 1)) : '';
+const sendUser = (res, user, status = 200) => {
+    const token = generateToken(user._id);
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+    return res.status(status).json({
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            store: user.store
+        },
+    });
 }
 
-async function createAuthResponse(user, res, status) {
-  const accessToken = createAccessToken(user.id);
-  const refresh = createRefreshToken(user.id);
-  await refreshTokenModel.issue(refresh.claims.jti, user.id, new Date(refresh.claims.exp * 1000));
-  setRefreshCookie(res, refresh.token);
-  res.status(status).json({ user: userModel.toPublic(user), accessToken, token: accessToken, expiresIn: ACCESS_TTL_SECONDS });
-}
-
-export function checkRegistration({ name, email, password }) {
-  const problems = [];
-  if (typeof name !== 'string' || !name.trim() || name.length > 80) {
-    problems.push('name is required and must be at most 80 characters');
-  }
-  if (typeof email !== 'string' || email.length > 254 || !EMAIL_PATTERN.test(email.trim())) {
-    problems.push('email must be a valid email address');
-  }
-  // The upper bound keeps password hashing cost predictable.
-  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-    problems.push('password must be between 8 and 128 characters');
-  }
-  return problems;
-}
-
-export function checkLogin({ email, password }) {
-  const problems = [];
-  if (typeof email !== 'string' || !email.trim()) problems.push('email is required');
-  if (typeof password !== 'string' || !password || password.length > 128) problems.push('password is required and must be at most 128 characters');
-  return problems;
-}
-
-export async function register(req, res) {
-  // Only these fields are read; a `role` in the body is ignored, so every sign-up is a customer.
-  const { name, email, password } = req.body;
-  const user = await userModel.create({ name, email, password });
-  if (!user) {
-    throw new HttpError(409, 'email_taken', 'An account with this email already exists');
-  }
-  await createAuthResponse(user, res, 201);
-}
-
-export async function login(req, res) {
-  const { email, password } = req.body;
-  const user = await userModel.verifyCredentials(email, password);
-  if (!user) {
-    throw new HttpError(401, 'invalid_credentials', 'Email or password is incorrect');
-  }
-  await createAuthResponse(user, res, 200);
-}
-
-export async function logout(req, res) {
-  const refreshToken = readRefreshCookie(req);
-  if (refreshToken) {
+const signup = async (req, res, next) => {
     try {
-      const claims = verifyJwt(refreshToken, 'refresh');
-      await refreshTokenModel.consume(claims.jti, claims.sub);
-    } catch { /* Expired or invalid refresh tokens are simply cleared. */ }
-  }
-  res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions, maxAge: undefined });
-  res.status(204).end();
-}
+        if (!hasJwtSecret())
+        {
+            return res.status(500).json({
+                message: "Authentication is not configured",
+                success: false,
+            });
+        }
+        const body = req.body || {};
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+        const password = body.password;
+        if (!name || !email || typeof password !== 'string') {
+            return res.status(400).json({
+                message: "Name, email, and password are required",
+                success: false,
+            });
+        }
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({
+                message: "Enter a valid email address",
+                success: false,
+            });
+        }
+        if (name.length > 100 || email.length > 254) {
+            return res.status(400).json({
+                message: "Name or email is too long",
+                success: false
+            });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({
+                    message: "Password must be at least 8 characters",
+                    success: false,
+            });
+        }
+        if (Buffer.byteLength(password, 'utf8') > 72) {
+            return res.status(400).json({
+                    message: "Password must be 72 bytes or fewer",
+                    success: false,
+            });
+        }
+        const user = await User.create({
+            name,
+            email,
+            password,
+            role: 'client'
+        });
 
-export async function refresh(req, res) {
-  const token = readRefreshCookie(req);
-  if (!token) throw new HttpError(401, 'unauthenticated', 'Sign in to continue');
-  const claims = verifyJwt(token, 'refresh');
-  const consumed = await refreshTokenModel.consume(claims.jti, claims.sub);
-  if (!consumed) throw new HttpError(401, 'unauthenticated', 'Refresh token has already been used or revoked');
-  const user = await userModel.findById(claims.sub);
-  if (!user) throw new HttpError(401, 'unauthenticated', 'Account no longer exists');
-  await createAuthResponse(user, res, 200);
-}
+        return sendUser(res, user, 201);
+    }
+    catch (err) {
+        if (err.code === 11000) return res
+            .status(409)
+            .json({
+                message: "An account with this email already exists",
+                success: false,
+            });
+        return next(err);
+    }
+};
 
-export function getCurrentUser(req, res) {
-  res.status(200).json({ user: req.user });
-}
+const login = async (req, res, next) => {
+    try {
+        if (!hasJwtSecret()) return res
+            .status(500)
+            .json({
+                message: "Authentication is not configured",
+                success: false,
+            });
+        const body = req.body || {};
+        const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+        const password = body.password;
+        if (!email || typeof password !== 'string' || !password) {
+            return res
+                .status(400)
+                .json({
+                    message: "Email and password are required",
+                    success: false,
+                });
+        }
+
+        const user = await User.findOne({ email }).select('+password');
+        if (!user || !(await user.matchPassword(password))) {
+            return res
+                .status(401)
+                .json({ message: "Invalid email or password", success: false });
+        }
+        return sendUser(res, user);
+    }
+    catch (err) {
+        return next(err);
+    }
+};
+
+const logout = (req, res) => {
+    res.clearCookie(COOKIE_NAME, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production'
+    });
+    return res.status(200).json({ message: "Logged out", success: true });
+};
+
+const getCurrentUser = (req, res) => {
+    res.json({
+        user: { id: req.user._id, name: req.user.name, email: req.user.email, role: req.user.role, store: req.user.store }
+    })
+};
+
+export {
+    signup,
+    login,
+    logout,
+    getCurrentUser,
+};
