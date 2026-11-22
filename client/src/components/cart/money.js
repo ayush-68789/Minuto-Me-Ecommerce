@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 export const formatMoney = (amount, currency = 'INR') => {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount || 0);

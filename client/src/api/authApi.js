@@ -2,9 +2,13 @@
 import api from './axiosInstance';
 
 export const signupRequest = (data) => api.post('/auth/signup', data).then((r) => r.data.user);
+export const customerSignupRequest = (data) => api.post('/auth/customer/signup', data).then((r) => r.data.user);
 export const loginRequest = (data) => api.post('/auth/login', data).then((r) => r.data.user);
+export const customerLoginRequest = (data) => api.post('/auth/customer/login', data).then((r) => r.data.user);
 export const logoutRequest = () => api.post('/auth/logout');
 export const fetchMe = () => api.get('/auth/me').then((r) => r.data.user);
+export const deleteCustomerRequest = (storeSlug) => api.delete('/auth/account', { params: storeSlug ? { storeSlug } : {} }).then((r) => r.data);
+export const updateCustomerRequest = (data) => api.patch('/auth/profile', data).then((r) => r.data.user);
 
 // Pulls a readable message out of an axios error
 export const errorMessage = (err, fallback = 'Something went wrong') =>

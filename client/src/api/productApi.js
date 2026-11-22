@@ -1,26 +1,77 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M4 (Product Management & Dashboard)
 import api from './axiosInstance';
 
-export const fetchProducts = (params = {}) =>
-  api.get('/products', { params }).then((r) => r.data);
+// Fetch products with search, filtering, sorting, and pagination
+export const fetchProducts = async (params = {}) => {
+  const response = await api.get('/products', { params });
+  return response.data;
+};
 
-export const fetchProductById = (id) =>
-  api.get(`/products/${id}`).then((r) => r.data.product);
+// Fetch a single product by ID
+export const fetchProductById = async (id, params = {}) => {
+  const response = await api.get(`/products/${id}`, { params });
+  return response.data;
+};
 
-export const createProduct = (data) =>
-  api.post('/products', data).then((r) => r.data.product);
+// Create a new product
+export const createProduct = async (productData) => {
+  const response = await api.post('/products', productData);
+  return response.data;
+};
 
-export const updateProduct = (id, data) =>
-  api.put(`/products/${id}`, data).then((r) => r.data.product);
+// Update an existing product
+export const updateProduct = async (id, productData) => {
+  const response = await api.put(`/products/${id}`, productData);
+  return response.data;
+};
 
-export const deleteProduct = (id) =>
-  api.delete(`/products/${id}`).then((r) => r.data);
+// Delete a product
+export const deleteProduct = async (id, params = {}) => {
+  const response = await api.delete(`/products/${id}`, { params });
+  return response.data;
+};
 
-export const fetchPublicProducts = (storeId, params = {}) =>
-  api.get(`/products/public/${storeId}`, { params }).then((r) => r.data);
+// Toggle active/inactive status
+export const toggleProductStatus = async (id, params = {}) => {
+  const response = await api.patch(`/products/${id}/toggle-status`, {}, { params });
+  return response.data;
+};
 
-export const productErrorMessage = (err, fallback = 'Failed to process product') =>
-  err?.response?.data?.message || fallback;
+// Quick stock adjustment (direct set or delta increment/decrement)
+export const updateProductStock = async (id, stockPayload) => {
+  const response = await api.patch(`/products/${id}/stock`, stockPayload);
+  return response.data;
+};
+
+// Fetch inventory alerts (low stock & out-of-stock items)
+export const fetchInventoryAlerts = async () => {
+  const response = await api.get('/products/inventory/alerts');
+  return response.data;
+};
+
+// Dashboard statistics
+export const fetchDashboardStats = async (params = {}) => {
+  const response = await api.get('/dashboard/stats', { params });
+  return response.data;
+};
+
+// Detailed inventory summary
+export const fetchInventorySummary = async () => {
+  const response = await api.get('/dashboard/inventory');
+  return response.data;
+};
+
+// Store details & settings
+export const fetchStoreSettings = async (params = {}) => {
+  const response = await api.get('/dashboard/store', { params });
+  return response.data;
+};
+
+// Update store details
+export const updateStoreSettings = async (settingsData) => {
+  const response = await api.put('/dashboard/store', settingsData);
+  return response.data;
+};
 
 export default {
   fetchProducts,
@@ -28,6 +79,11 @@ export default {
   createProduct,
   updateProduct,
   deleteProduct,
-  fetchPublicProducts,
-  productErrorMessage,
+  toggleProductStatus,
+  updateProductStock,
+  fetchInventoryAlerts,
+  fetchDashboardStats,
+  fetchInventorySummary,
+  fetchStoreSettings,
+  updateStoreSettings,
 };

@@ -1,94 +1,130 @@
-// Owner: M2 - Products & Dashboard
 import path from 'path';
-import fs from 'fs';
+import crypto from 'crypto';
+import multer from 'multer';
 
-// Resolve uploads directory
-const uploadDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  try {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  } catch {
-    // Ignore error if directory already exists
+// 5MB maximum file size
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+// Magic number signatures for binary content validation
+function validateMagicNumbers(buffer) {
+  return Boolean(detectImageMime(buffer));
+}
+
+function detectImageMime(buffer) {
+  if (!buffer || buffer.length < 4) return false;
+
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+
+  // GIF: 47 49 46 38
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) return 'image/gif';
+
+  // WEBP: 52 49 46 46 ... 57 45 42 50
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return 'image/webp';
   }
+
+  return null;
 }
 
-// Multer integration with graceful fallback
-let multerMiddleware;
-try {
-  const multerModule = await import('multer');
-  const multer = multerModule.default || multerModule;
+const storage = multer.memoryStorage();
 
-  const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      cb(null, uploadDir);
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
-    },
-  });
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = file.mimetype.toLowerCase();
 
-  const fileFilter = (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|gif|svg/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files (jpeg, jpg, png, webp, gif, svg) are allowed'));
-    }
-  };
+  if (!ALLOWED_MIME_TYPES.has(mime) || !ALLOWED_EXTENSIONS.has(ext)) {
+    const err = new Error('Unsupported image format. Allowed formats: JPG, PNG, WEBP, GIF.');
+    err.status = 400;
+    return cb(err, false);
+  }
 
-  const upload = multer({
-    storage,
-    fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
-  });
+  cb(null, true);
+};
 
-  multerMiddleware = {
-    single: (fieldName) => (req, res, next) => {
-      upload.single(fieldName)(req, res, (err) => {
-        if (err) {
-          return res.status(400).json({ message: err.message, success: false });
+const rawUpload = multer({
+  storage,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 1,
+  },
+  fileFilter,
+});
+
+/**
+ * Middleware wrapper that catches Multer errors and validates binary content.
+ */
+export const uploadImageMiddleware = (fieldName = 'image') => {
+  const uploadSingle = rawUpload.single(fieldName);
+
+  return (req, res, next) => {
+    uploadSingle(req, res, (err) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: `File size exceeds the 5MB limit`,
+          });
         }
-        if (req.file) {
-          req.body[fieldName] = `/uploads/${req.file.filename}`;
-        }
-        next();
-      });
-    },
-    array: (fieldName, maxCount = 5) => (req, res, next) => {
-      upload.array(fieldName, maxCount)(req, res, (err) => {
-        if (err) {
-          return res.status(400).json({ message: err.message, success: false });
-        }
-        if (req.files?.length) {
-          req.body[fieldName] = req.files.map((f) => `/uploads/${f.filename}`);
-        }
-        next();
-      });
-    },
-  };
-} catch {
-  // Graceful fallback when multer is not available
-  multerMiddleware = {
-    single: (fieldName) => (req, _res, next) => {
-      if (req.body?.[fieldName] && typeof req.body[fieldName] === 'string') {
-        // Image URL or base64 data already provided in body
+        return res.status(err.status || 400).json({
+          success: false,
+          message: err.message || 'File upload error',
+        });
       }
-      next();
-    },
-    array: (fieldName) => (req, _res, next) => {
-      if (req.body?.[fieldName] && !Array.isArray(req.body[fieldName])) {
-        req.body[fieldName] = [req.body[fieldName]];
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No image file provided',
+        });
       }
+
+      if (req.file.size === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'The uploaded file is empty',
+        });
+      }
+
+      // Validate binary magic numbers
+      if (!validateMagicNumbers(req.file.buffer)) {
+        return res.status(400).json({
+          success: false,
+          message: 'File content does not match a valid image signature',
+        });
+      }
+
+      if (detectImageMime(req.file.buffer) !== req.file.mimetype.toLowerCase()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image content does not match the declared file type',
+        });
+      }
+
+      // Generate secure unique filename
+      const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
+      req.file.safeFilename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
+
       next();
-    },
+    });
   };
-}
+};
 
-export const uploadSingle = (field) => multerMiddleware.single(field);
-export const uploadArray = (field, maxCount) => multerMiddleware.array(field, maxCount);
-
-export default multerMiddleware;
+export { validateMagicNumbers, detectImageMime, ALLOWED_MIME_TYPES, ALLOWED_EXTENSIONS };
+export default uploadImageMiddleware;

@@ -1,234 +1,160 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M1
 import Store from '../models/Store.js';
 import User from '../models/User.js';
-import Product from '../models/Product.js';
+import { sanitizeSocial, sanitizeTheme } from '../validators/storeValidator.js';
+import { logAudit } from '../utils/auditLogger.js';
+import deleteStoreData from '../utils/deleteStoreData.js';
 
-/**
- * Generate a clean URL-friendly slug
- */
-const slugify = (text) =>
-  text
-    .toString()
-    .toLowerCase()
+const writableFields = ['businessName', 'category', 'description', 'slug', 'currency', 'template'];
+const capTemplate = (u) => { if (typeof u.template === 'string') u.template = u.template.trim().slice(0, 30); return u; };
+const nestedFields = {
+  branding: ['logo', 'primaryColor', 'secondaryColor', 'accentColor', 'banners'],
+  contact: ['email', 'phone', 'address'],
+  features: ['reviews', 'wishlist', 'coupons'],
+};
+
+function pickStoreFields(input, includeSlug = true) {
+  const update = {};
+  for (const field of writableFields) {
+    if (field !== 'slug' || includeSlug) {
+      if (Object.prototype.hasOwnProperty.call(input, field)) update[field] = input[field];
+    }
+  }
+  for (const [group, fields] of Object.entries(nestedFields)) {
+    if (!input[group] || typeof input[group] !== 'object' || Array.isArray(input[group])) continue;
+    for (const field of fields) {
+      if (Object.prototype.hasOwnProperty.call(input[group], field)) update[`${group}.${field}`] = input[group][field];
+    }
+  }
+  Object.assign(update, designUpdate(input));
+  return capTemplate(update);
+}
+
+// theme/social as dotted $set paths so a partial update never wipes sibling settings
+export function designUpdate(input) {
+  const update = {};
+  const theme = sanitizeTheme(input.theme);
+  if (theme) {
+    const { content, ...rest } = theme;
+    for (const [k, v] of Object.entries(rest)) update[`theme.${k}`] = v;
+    if (content) for (const [k, v] of Object.entries(content)) update[`theme.content.${k}`] = v;
+  }
+  const social = sanitizeSocial(input.social);
+  if (social) for (const [k, v] of Object.entries(social)) update[`social.${k}`] = v;
+  return update;
+}
+
+function normalizeSlug(value) {
+  return String(value || '')
     .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]+/g, '')
-    .replace(/--+/g, '-');
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
 
-/**
- * Create a new store for the authenticated merchant
- */
 export const createStore = async (req, res, next) => {
   try {
-    const {
-      name,
-      slug: customSlug,
-      description = '',
-      category = 'General',
-      currency = 'USD',
-      logo = '',
-      banner = '',
-      settings = {},
-    } = req.body;
-
-    const baseSlug = customSlug ? slugify(customSlug) : slugify(name);
-    let uniqueSlug = baseSlug;
-    let counter = 1;
-
-    while (await Store.findOne({ slug: uniqueSlug })) {
-      uniqueSlug = `${baseSlug}-${counter++}`;
+    const input = req.body || {};
+    const values = pickStoreFields(input);
+    values.slug = normalizeSlug(values.slug || values.businessName);
+    if (!values.businessName || !values.category || !values.slug) {
+      return res.status(400).json({ message: 'Business name and category are required' });
     }
+    if (values.slug.length > 80) return res.status(400).json({ message: 'Store slug must be 80 characters or fewer' });
+    const store = await Store.create({ ...values, owner: req.user._id });
+    await User.updateOne({ _id: req.user._id, store: null }, { $set: { store: store._id } });
+    req.store = store;
 
-    const store = await Store.create({
-      name: name.trim(),
-      slug: uniqueSlug,
-      description: description.trim(),
-      category: category.trim(),
-      currency: currency.toUpperCase(),
-      logo,
-      banner,
-      owner: req.user._id,
-      settings: {
-        contactEmail: settings.contactEmail || req.user.email,
-        contactPhone: settings.contactPhone || '',
-        address: settings.address || '',
-        theme: settings.theme || 'modern',
-      },
+    await logAudit({
+      req,
+      storeId: store._id,
+      action: 'STORE_CREATE',
+      resourceType: 'Store',
+      resourceId: store._id,
+      details: { businessName: store.businessName, slug: store.slug },
     });
 
-    // Link user to their primary store
-    await User.findByIdAndUpdate(req.user._id, { store: store._id });
-    req.user.store = store._id;
-
-    return res.status(201).json({
-      success: true,
-      store,
-    });
+    return res.status(201).json({ store });
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({
-        message: 'A store with this name or slug already exists',
-        success: false,
-      });
-    }
+    if (err.code === 11000) return res.status(409).json({ message: 'This store URL is already in use' });
+    if (err.name === 'ValidationError') return res.status(400).json({ message: err.message });
     return next(err);
   }
 };
 
-/**
- * Get the current user's active store
- */
 export const getMyStore = async (req, res, next) => {
   try {
-    let store = null;
-
-    if (req.user.store) {
-      store = await Store.findById(req.user.store);
-    }
-
-    if (!store) {
-      store = await Store.findOne({ owner: req.user._id });
-    }
-
-    if (!store) {
-      return res.status(404).json({
-        message: 'No store found for this account',
-        success: false,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      store,
-    });
+    const store = await resolveMyStore(req);
+    if (!store) return res.status(404).json({ message: 'Store not found' });
+    return res.json({ store });
   } catch (err) {
     return next(err);
   }
 };
 
-/**
- * Get store by ID
- */
-export const getStore = async (req, res, next) => {
+export const getMyStores = async (req, res, next) => {
   try {
-    const store = await Store.findById(req.params.id);
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found', success: false });
-    }
-
-    return res.status(200).json({
-      success: true,
-      store,
-    });
+    const stores = await Store.find({ owner: req.user._id })
+      .select('businessName slug category currency status branding createdAt updatedAt')
+      .sort({ createdAt: 1 });
+    return res.json({ stores });
   } catch (err) {
     return next(err);
   }
 };
 
-/**
- * Get store by public slug
- */
-export const getStoreBySlug = async (req, res, next) => {
+export async function resolveMyStore(req) {
+  const requestedId = req.get('x-store-id');
+  if (requestedId) {
+    if (!/^[a-f\d]{24}$/i.test(requestedId)) return null;
+    return Store.findOne({ _id: requestedId, owner: req.user._id });
+  }
+  if (req.user.store) {
+    const primaryStore = await Store.findOne({ _id: req.user.store, owner: req.user._id });
+    if (primaryStore) return primaryStore;
+  }
+  return Store.findOne({ owner: req.user._id }).sort({ createdAt: 1 });
+}
+
+export const updateMyStore = async (req, res, next) => {
   try {
-    const store = await Store.findOne({ slug: req.params.slug });
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found', success: false });
+    const update = pickStoreFields(req.body || {}, false);
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'Provide at least one supported store field to update' });
     }
+    const current = await resolveMyStore(req);
+    const store = current && await Store.findOneAndUpdate(
+      { _id: current._id, owner: req.user._id }, { $set: update }, { new: true, runValidators: true }
+    );
+    if (!store) return res.status(404).json({ message: 'Store not found' });
 
-    return res.status(200).json({
-      success: true,
-      store: {
-        id: store._id,
-        name: store.name,
-        slug: store.slug,
-        description: store.description,
-        logo: store.logo,
-        banner: store.banner,
-        category: store.category,
-        currency: store.currency,
-        settings: store.settings,
-      },
+    await logAudit({
+      req,
+      storeId: store._id,
+      action: 'STORE_UPDATE',
+      resourceType: 'Store',
+      resourceId: store._id,
+      details: update,
     });
+
+    return res.json({ store });
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'This store URL is already in use' });
+    if (err.name === 'ValidationError' || err.name === 'CastError') return res.status(400).json({ message: err.message });
     return next(err);
   }
 };
 
-/**
- * Update store settings and branding
- */
-export const updateStore = async (req, res, next) => {
+export const deleteMyStore = async (req, res, next) => {
   try {
-    const store = req.store || (await Store.findById(req.params.id));
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found', success: false });
-    }
-
-    const {
-      name,
-      description,
-      category,
-      currency,
-      logo,
-      banner,
-      status,
-      settings,
-    } = req.body;
-
-    if (name !== undefined) store.name = name.trim();
-    if (description !== undefined) store.description = description.trim();
-    if (category !== undefined) store.category = category.trim();
-    if (currency !== undefined) store.currency = currency.toUpperCase();
-    if (logo !== undefined) store.logo = logo;
-    if (banner !== undefined) store.banner = banner;
-    if (status !== undefined) store.status = status;
-
-    if (settings && typeof settings === 'object') {
-      store.settings = {
-        ...store.settings?.toObject(),
-        ...settings,
-      };
-    }
-
-    await store.save();
-
-    return res.status(200).json({
-      success: true,
-      store,
-    });
+    const store = await resolveMyStore(req);
+    if (!store) return res.status(404).json({ message: 'Store not found' });
+    const storeId = store._id;
+    await deleteStoreData(storeId);
+    const nextStore = await Store.findOne({ owner: req.user._id }).sort({ createdAt: 1 });
+    await User.updateOne({ _id: req.user._id }, { $set: { store: nextStore?._id || null } });
+    return res.json({ success: true, message: 'Store and its data were deleted', nextStore: nextStore || null });
   } catch (err) {
     return next(err);
   }
-};
-
-/**
- * Delete a store and associated products
- */
-export const deleteStore = async (req, res, next) => {
-  try {
-    const store = req.store || (await Store.findById(req.params.id));
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found', success: false });
-    }
-
-    await Product.deleteMany({ store: store._id });
-    await Store.findByIdAndDelete(store._id);
-    await User.findByIdAndUpdate(store.owner, { $unset: { store: 1 } });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Store and related products deleted successfully',
-    });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-export default {
-  createStore,
-  getMyStore,
-  getStore,
-  getStoreBySlug,
-  updateStore,
-  deleteStore,
 };

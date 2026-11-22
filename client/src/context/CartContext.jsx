@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 // One cart per store, keyed by store slug and kept in localStorage.
 // Prices here are for display only; the server re-prices everything at checkout.
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,6 +17,10 @@ const read = (key) => {
   }
 };
 
+const readGuestOrders = () => Object.fromEntries(
+  Object.entries(read(ORDERS_KEY)).map(([slug, orders]) => [slug, (Array.isArray(orders) ? orders : []).filter((order) => order?.id).map(({ id }) => ({ id }))])
+);
+
 const write = (key, value) => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -32,7 +36,7 @@ const clampQty = (qty, stock) => {
 
 export function CartProvider({ children }) {
   const [carts, setCarts] = useState(() => read(CARTS_KEY));
-  const [guestOrders, setGuestOrders] = useState(() => read(ORDERS_KEY));
+  const [guestOrders, setGuestOrders] = useState(readGuestOrders);
 
   useEffect(() => write(CARTS_KEY, carts), [carts]);
   useEffect(() => write(ORDERS_KEY, guestOrders), [guestOrders]);
@@ -88,10 +92,10 @@ export function CartProvider({ children }) {
   const clearCart = useCallback((slug) => updateCart(slug, () => []), [updateCart]);
 
   // Remember guest orders on this device so they show up in order history
-  const rememberOrder = useCallback((slug, orderId, email) => {
+  const rememberOrder = useCallback((slug, orderId) => {
     setGuestOrders((prev) => {
       const list = (prev[slug] || []).filter((o) => o.id !== orderId);
-      return { ...prev, [slug]: [{ id: orderId, email }, ...list].slice(0, 20) };
+      return { ...prev, [slug]: [{ id: orderId }, ...list].slice(0, 20) };
     });
   }, []);
 

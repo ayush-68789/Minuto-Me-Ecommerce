@@ -1,87 +1,89 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M4 (read by M3 storefront and M5 cart/orders, managed by M3 dashboard)
 import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 120,
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: 2000,
-      default: '',
-    },
-    price: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    compareAtPrice: {
-      type: Number,
-      min: 0,
-      default: null,
-    },
-    stock: {
-      type: Number,
-      required: true,
-      min: 0,
-      default: 0,
-    },
-    sku: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    category: {
-      type: String,
-      trim: true,
-      default: 'General',
-    },
-    images: {
-      type: [String],
-      default: [],
-    },
-    imageUrl: {
-      type: String,
-      default: '',
-    },
+    // Multi-tenancy: EVERY query must filter by store
     store: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Store',
-      required: true,
+      required: [true, 'Store reference is required'],
       index: true,
     },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      index: true,
-    },
-    status: {
+
+    name: {
       type: String,
-      enum: ['active', 'draft', 'archived'],
-      default: 'active',
+      required: [true, 'Product name is required'],
+      trim: true,
+      maxlength: [200, 'Product name cannot exceed 200 characters'],
     },
-    isFeatured: {
+    description: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [5000, 'Description cannot exceed 5000 characters'],
+    },
+    price: {
+      type: Number,
+      required: [true, 'Price is required'],
+      min: [0, 'Price must be non-negative'],
+      max: [100000000, 'Price exceeds maximum allowed limit'],
+    },
+    comparePrice: {
+      type: Number,
+      min: [0, 'Compare price must be non-negative'],
+      max: [100000000, 'Compare price exceeds maximum allowed limit'],
+      default: null,
+    },
+    images: {
+      type: [{ type: String }],
+      validate: [
+        (val) => Array.isArray(val) && val.length <= 20,
+        'Cannot have more than 20 product images',
+      ],
+      default: [],
+    },
+    category: {
+      type: String,
+      default: 'General',
+      trim: true,
+      maxlength: [100, 'Category cannot exceed 100 characters'],
+    },
+    stock: {
+      type: Number,
+      default: 0,
+      min: [0, 'Stock cannot be negative'],
+      max: [1000000, 'Stock cannot exceed 1,000,000 units'],
+      validate: {
+        validator: Number.isInteger,
+        message: 'Stock must be an integer quantity',
+      },
+    },
+    isActive: {
       type: Boolean,
-      default: false,
+      default: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Keep imageUrl and images array in sync
-productSchema.pre('save', function (next) {
-  if (this.imageUrl && (!this.images || this.images.length === 0)) {
-    this.images = [this.imageUrl];
-  } else if (this.images && this.images.length > 0 && !this.imageUrl) {
-    this.imageUrl = this.images[0];
-  }
-  if (typeof next === 'function') next();
+// Virtuals for inventory state
+productSchema.virtual('isLowStock').get(function () {
+  return typeof this.stock === 'number' && this.stock > 0 && this.stock <= 5;
 });
 
-export default mongoose.models.Product || mongoose.model('Product', productSchema);
+productSchema.virtual('isOutOfStock').get(function () {
+  return typeof this.stock === 'number' && this.stock === 0;
+});
+
+// Indexes for performant filtering and sorting within a store tenant
+productSchema.index({ store: 1, category: 1 });
+productSchema.index({ store: 1, isActive: 1 });
+productSchema.index({ store: 1, stock: 1 });
+productSchema.index({ store: 1, createdAt: -1 });
+
+export default mongoose.model('Product', productSchema);

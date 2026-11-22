@@ -1,18 +1,21 @@
-// Owner: M2 - Products & Dashboard
-import { Router } from 'express';
+// Owner: M4 (Product Management & Dashboard)
+import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
 import {
-  getDashboardSummary,
-  getLowStockAlerts,
+  getStats,
+  getInventorySummary,
+  getStoreDetails,
+  updateStoreDetails,
 } from '../controllers/dashboardController.js';
 
-const router = Router();
+const router = express.Router();
 
-// Dashboard metrics require merchant authentication
+// All dashboard endpoints require merchant authentication
 router.use(authMiddleware);
 
-router.get('/summary', getDashboardSummary);
-router.get('/stats', getDashboardSummary);
-router.get('/low-stock', getLowStockAlerts);
+router.get('/stats', getStats);
+router.get('/inventory', getInventorySummary);
+router.get('/store', getStoreDetails);
+router.put('/store', updateStoreDetails);
 
 export default router;
