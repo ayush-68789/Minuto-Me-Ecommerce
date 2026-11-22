@@ -1,4 +1,4 @@
-// Owner: M4
+// Owner: M4 (Product Management & Dashboard)
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../../components/dashboard/Sidebar';
@@ -43,10 +43,13 @@ export default function DashboardHome() {
 
   const store = data?.store;
   const stats = data?.stats;
+  const lowStockAlerts = data?.lowStockAlerts || [];
   const recentProducts = data?.recentProducts || [];
   const recentOrders = data?.recentOrders || [];
 
   const currencySymbol = store?.currency === 'USD' ? '$' : store?.currency === 'EUR' ? '€' : '₹';
+
+  const totalAlertCount = (stats?.lowStockProducts || 0) + (stats?.outOfStockProducts || 0);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
@@ -72,8 +75,8 @@ export default function DashboardHome() {
               Store Overview
             </h1>
             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-              Welcome back to your client dashboard for{' '}
-              <strong style={{ color: '#1e293b' }}>{store?.businessName || 'ShopSphere'}</strong>
+              Welcome back to your merchant dashboard for{' '}
+              <strong style={{ color: '#1e293b' }}>{store?.businessName || 'Your Store'}</strong>
             </div>
           </div>
 
@@ -135,9 +138,74 @@ export default function DashboardHome() {
                 color: '#b91c1c',
                 fontSize: '14px',
                 marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              {error}
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={loadStats}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #f87171',
+                  backgroundColor: '#ffffff',
+                  color: '#b91c1c',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Low Stock Attention Alert Banner */}
+          {totalAlertCount > 0 && (
+            <div
+              style={{
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '12px',
+                padding: '16px 20px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#92400e' }}>
+                    Inventory Attention Required ({totalAlertCount} items)
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#b45309', marginTop: '2px' }}>
+                    You have {stats?.outOfStockProducts || 0} out-of-stock items and{' '}
+                    {stats?.lowStockProducts || 0} items with low stock (5 or fewer units remaining).
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                to="/dashboard/products"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Review Inventory →
+              </Link>
             </div>
           )}
 
@@ -153,7 +221,7 @@ export default function DashboardHome() {
             <StatsCard
               title="Total Revenue"
               value={`${currencySymbol}${(stats?.totalRevenue || 0).toLocaleString()}`}
-              subtitle="All confirmed & delivered orders"
+              subtitle={stats?.averageOrderValue ? `AOV: ${currencySymbol}${stats.averageOrderValue.toLocaleString()}` : 'From completed & active orders'}
               badgeText="Live Orders"
               badgeType="positive"
               accentColor="#10b981"
@@ -167,7 +235,7 @@ export default function DashboardHome() {
             <StatsCard
               title="Total Orders"
               value={stats?.totalOrders || 0}
-              subtitle={`${stats?.pendingOrders || 0} pending processing`}
+              subtitle={`${stats?.pendingOrders || 0} pending • ${stats?.deliveredOrders || 0} delivered`}
               badgeText={stats?.pendingOrders ? `${stats.pendingOrders} pending` : 'All clear'}
               badgeType={stats?.pendingOrders ? 'warning' : 'neutral'}
               accentColor="#3b82f6"
@@ -179,9 +247,9 @@ export default function DashboardHome() {
             />
 
             <StatsCard
-              title="Active Products"
-              value={stats?.activeProducts || 0}
-              subtitle={`${stats?.totalProducts || 0} total products listed`}
+              title="Catalog Items"
+              value={stats?.totalProducts || 0}
+              subtitle={`${stats?.activeProducts || 0} active • ${stats?.inactiveProducts || 0} draft`}
               badgeText={`${stats?.categoryCount || 0} categories`}
               badgeType="neutral"
               accentColor="#6366f1"
@@ -193,11 +261,11 @@ export default function DashboardHome() {
             />
 
             <StatsCard
-              title="Inventory Alert"
-              value={(stats?.lowStockProducts || 0) + (stats?.outOfStockProducts || 0)}
-              subtitle={`${stats?.outOfStockProducts || 0} out of stock, ${stats?.lowStockProducts || 0} low`}
-              badgeText={stats?.outOfStockProducts ? 'Action Required' : 'Optimal'}
-              badgeType={stats?.outOfStockProducts ? 'danger' : 'positive'}
+              title="Inventory Health"
+              value={`${(stats?.totalUnits || 0).toLocaleString()} units`}
+              subtitle={`${stats?.outOfStockProducts || 0} out of stock • ${stats?.lowStockProducts || 0} low`}
+              badgeText={stats?.outOfStockProducts ? 'Restock Needed' : totalAlertCount ? 'Low Stock' : 'Healthy'}
+              badgeType={stats?.outOfStockProducts ? 'danger' : totalAlertCount ? 'warning' : 'positive'}
               accentColor="#f59e0b"
               icon={
                 <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,10 +291,10 @@ export default function DashboardHome() {
           >
             <div>
               <div style={{ fontSize: '18px', fontWeight: 700 }}>
-                Customize Your Storefront Theme & Branding
+                Storefront &amp; Brand Settings
               </div>
               <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px', maxWidth: '600px' }}>
-                Tune your brand colors, upload logos, set hero banners, and enable features like coupons and reviews for your store.
+                Update your store details, colors, social links, contact information, and enabled storefront features.
               </div>
             </div>
             <Link
@@ -242,12 +310,12 @@ export default function DashboardHome() {
                 whiteSpace: 'nowrap',
               }}
             >
-              Edit Branding & Settings →
+              Store Settings →
             </Link>
           </div>
 
           {/* Recent Products & Recent Orders Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
             {/* Recent Products Section */}
             <div
               style={{
@@ -266,7 +334,7 @@ export default function DashboardHome() {
                   to="/dashboard/products"
                   style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}
                 >
-                  Manage All Products ({stats?.totalProducts || 0}) →
+                  Manage Products ({stats?.totalProducts || 0}) →
                 </Link>
               </div>
 
@@ -313,14 +381,17 @@ export default function DashboardHome() {
                             {p.name}
                           </div>
                           <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            {p.category || 'General'} • Stock: {p.stock}
+                            {p.category || 'General'} • Stock:{' '}
+                            <strong style={{ color: p.stock === 0 ? '#dc2626' : p.stock <= 5 ? '#d97706' : '#16a34a' }}>
+                              {p.stock}
+                            </strong>
                           </div>
                         </div>
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-                          {currencySymbol}{p.price}
+                          {currencySymbol}{Number(p.price).toLocaleString()}
                         </span>
                         <Link
                           to={`/dashboard/products/edit/${p._id}`}
@@ -354,9 +425,12 @@ export default function DashboardHome() {
                 <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                   Recent Orders
                 </h2>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  {recentOrders.length} Recent
-                </span>
+                <Link
+                  to="/dashboard/orders"
+                  style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}
+                >
+                  Manage Orders ({stats?.totalOrders || 0}) →
+                </Link>
               </div>
 
               {recentOrders.length === 0 ? (
@@ -392,7 +466,7 @@ export default function DashboardHome() {
 
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-                          {currencySymbol}{ord.total}
+                          {currencySymbol}{Number(ord.total).toLocaleString()}
                         </div>
                         <span
                           style={{
@@ -401,8 +475,18 @@ export default function DashboardHome() {
                             padding: '2px 6px',
                             borderRadius: '4px',
                             textTransform: 'uppercase',
-                            backgroundColor: ord.status === 'delivered' ? '#dcfce7' : '#fef3c7',
-                            color: ord.status === 'delivered' ? '#15803d' : '#b45309',
+                            backgroundColor:
+                              ord.status === 'delivered'
+                                ? '#dcfce7'
+                                : ord.status === 'cancelled'
+                                ? '#fee2e2'
+                                : '#fef3c7',
+                            color:
+                              ord.status === 'delivered'
+                                ? '#15803d'
+                                : ord.status === 'cancelled'
+                                ? '#b91c1c'
+                                : '#b45309',
                           }}
                         >
                           {ord.status}
