@@ -10,6 +10,12 @@ import Loader from '../../components/common/Loader';
 import Home from './Home';
 import ProductDetails from './ProductDetails';
 import Shop from '../shop';
+import CustomerLogin from '../auth/CustomerLogin';
+import CustomerRegister from '../auth/CustomerRegister';
+import CustomerAccount from '../auth/CustomerAccount';
+import CustomerLogout from '../auth/CustomerLogout';
+import CustomerDeleteAccount from '../auth/CustomerDeleteAccount';
+import CustomerProfile from '../auth/CustomerProfile';
 import '../../components/storefront/storefront.css';
 
 function StoreShell() {
@@ -54,6 +60,12 @@ function StoreShell() {
         <Routes>
           <Route index element={<Home />} />
           <Route path="product/:productId" element={<ProductDetails />} />
+          <Route path="login" element={<CustomerLogin />} />
+          <Route path="register" element={<CustomerRegister />} />
+          <Route path="account" element={<CustomerAccount />} />
+          <Route path="account/profile" element={<CustomerProfile />} />
+          <Route path="logout" element={<CustomerLogout />} />
+          <Route path="delete-account" element={<CustomerDeleteAccount />} />
           <Route path="*" element={<div className="container" style={{ paddingTop: 32, paddingBottom: 64 }}><Shop /></div>} />
         </Routes>
       </main>

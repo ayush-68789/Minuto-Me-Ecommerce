@@ -2,13 +2,15 @@
 import Store from '../models/Store.js';
 import User from '../models/User.js';
 import { sanitizeSocial, sanitizeTheme } from '../validators/storeValidator.js';
+import { logAudit } from '../utils/auditLogger.js';
+import deleteStoreData from '../utils/deleteStoreData.js';
 
 const writableFields = ['businessName', 'category', 'description', 'slug', 'currency', 'template'];
 const capTemplate = (u) => { if (typeof u.template === 'string') u.template = u.template.trim().slice(0, 30); return u; };
 const nestedFields = {
   branding: ['logo', 'primaryColor', 'secondaryColor', 'accentColor', 'banners'],
   contact: ['email', 'phone', 'address'],
-  features: ['payments', 'reviews', 'wishlist', 'coupons'],
+  features: ['reviews', 'wishlist', 'coupons'],
 };
 
 function pickStoreFields(input, includeSlug = true) {
@@ -62,6 +64,16 @@ export const createStore = async (req, res, next) => {
     const store = await Store.create({ ...values, owner: req.user._id });
     await User.updateOne({ _id: req.user._id, store: null }, { $set: { store: store._id } });
     req.store = store;
+
+    await logAudit({
+      req,
+      storeId: store._id,
+      action: 'STORE_CREATE',
+      resourceType: 'Store',
+      resourceId: store._id,
+      details: { businessName: store.businessName, slug: store.slug },
+    });
+
     return res.status(201).json({ store });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ message: 'This store URL is already in use' });
@@ -115,10 +127,34 @@ export const updateMyStore = async (req, res, next) => {
       { _id: current._id, owner: req.user._id }, { $set: update }, { new: true, runValidators: true }
     );
     if (!store) return res.status(404).json({ message: 'Store not found' });
+
+    await logAudit({
+      req,
+      storeId: store._id,
+      action: 'STORE_UPDATE',
+      resourceType: 'Store',
+      resourceId: store._id,
+      details: update,
+    });
+
     return res.json({ store });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ message: 'This store URL is already in use' });
     if (err.name === 'ValidationError' || err.name === 'CastError') return res.status(400).json({ message: err.message });
+    return next(err);
+  }
+};
+
+export const deleteMyStore = async (req, res, next) => {
+  try {
+    const store = await resolveMyStore(req);
+    if (!store) return res.status(404).json({ message: 'Store not found' });
+    const storeId = store._id;
+    await deleteStoreData(storeId);
+    const nextStore = await Store.findOne({ owner: req.user._id }).sort({ createdAt: 1 });
+    await User.updateOne({ _id: req.user._id }, { $set: { store: nextStore?._id || null } });
+    return res.json({ success: true, message: 'Store and its data were deleted', nextStore: nextStore || null });
+  } catch (err) {
     return next(err);
   }
 };

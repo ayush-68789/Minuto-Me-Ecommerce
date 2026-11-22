@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router-dom';
 import useCart from '../../hooks/useCart';
 import { resolveTheme } from '../../theme/themeConfig';
 import { IconCart, IconMenu, IconSearch, IconX, IconHeart } from '../common/Icons';
+import useAuth from '../../hooks/useAuth';
 
 export function StoreLogo({ store, size }) {
   const logo = store?.branding?.logo;
@@ -23,6 +24,8 @@ export default function Navbar({ store, preview = false }) {
   const t = resolveTheme(store);
   const base = `/store/${store.slug}`;
   const { count } = useCart(store.slug);
+  const { user } = useAuth();
+  const isStoreCustomer = user?.role === 'customer' && String(user.customerStore) === String(store?._id);
   const [open, setOpen] = useState(false);
   const hasCats = t.sections.some((s) => s.key === 'categories' && s.on);
   const hasAbout = t.sections.some((s) => s.key === 'about' && s.on);
@@ -36,7 +39,12 @@ export default function Navbar({ store, preview = false }) {
       <A to={base} end>Shop</A>
       {hasCats && <A onClick={() => { setOpen(false); scrollTo('sf-categories'); }}>Categories</A>}
       {hasAbout && <A onClick={() => { setOpen(false); scrollTo('sf-about'); }}>About</A>}
-      <A to={`${base}/orders`}>My orders</A>
+      {(!user || isStoreCustomer) ? <A to={`${base}/orders`}>My orders</A> : null}
+      {!preview && (isStoreCustomer
+        ? <A to={`${base}/account`}>Customer account</A>
+        : user?.role === 'client'
+          ? <A to="/dashboard">Store owner dashboard</A>
+          : user?.role === 'customer' || !user ? <A to={`${base}/login`}>Customer sign in</A> : null)}
     </>
   );
 

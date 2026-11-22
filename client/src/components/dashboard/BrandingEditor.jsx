@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import StudioPreview from '../studio/StudioPreview';
 import { LayoutPanel, SectionsPanel, SettingsPanel, StylePanel, ThemePanel } from '../studio/StudioPanels';
-import { downscaleImage } from '../studio/imageTools';
+import { uploadImage } from '../../api/uploadApi';
+import { normalizeImageUrl } from '../../utils/imageUrl';
 import { DEFAULT_THEME } from '../../theme/themeConfig';
 import { IconBrush, IconEye, IconLayers, IconLayout, IconPalette, IconSettings, IconStore, IconUpload } from '../common/Icons';
 import '../../pages/onboarding/onboarding.css';
@@ -27,7 +28,7 @@ export const toForm = (store = {}) => ({
   template: store.template || 'modern',
   branding: { logo: '', primaryColor: '#4f46e5', secondaryColor: '#eef2ff', accentColor: '#f97316', banners: [], ...(store.branding || {}) },
   contact: { email: '', phone: '', address: '', ...(store.contact || {}) },
-  features: { payments: false, reviews: false, wishlist: false, coupons: false, ...(store.features || {}) },
+  features: { reviews: false, wishlist: false, coupons: false, ...(store.features || {}) },
   theme: { ...DEFAULT_THEME, ...(store.theme || {}), content: { ...(store.theme?.content || {}) } },
   social: { ...(store.social || {}) },
 });
@@ -53,6 +54,7 @@ export default function BrandingEditor({ store, products, onSave, isSaving = fal
   const [error, setError] = useState('');
   const [focus, setFocus] = useState(null);
   const [mobilePreview, setMobilePreview] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
   const logoRef = useRef(null);
 
   useEffect(() => {
@@ -89,9 +91,22 @@ export default function BrandingEditor({ store, products, onSave, isSaving = fal
   const onLogo = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file || !file.type.startsWith('image/')) return;
-    const logo = await downscaleImage(file, { max: 200, quality: 0.9, square: true });
-    setForm((f) => ({ ...f, branding: { ...f.branding, logo } }));
+    if (!file) return;
+    try {
+      const logo = await uploadImage(file);
+      setForm((f) => ({ ...f, branding: { ...f.branding, logo } }));
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Could not upload that image');
+    }
+  };
+
+  const onLogoUrl = () => {
+    const url = normalizeImageUrl(logoUrl);
+    if (!url) return setError('Enter a valid HTTP or HTTPS image URL');
+    setForm((f) => ({ ...f, branding: { ...f.branding, logo: url } }));
+    setLogoUrl('');
+    setError('');
   };
 
   const onSectionPick = (key) => { setTab('sections'); setFocus({ key, n: Date.now() }); setMobilePreview(false); };
@@ -142,6 +157,10 @@ export default function BrandingEditor({ store, products, onSave, isSaving = fal
                     {form.branding.logo && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm((f) => ({ ...f, branding: { ...f.branding, logo: '' } }))}>Remove</button>}
                   </div>
                   <input ref={logoRef} type="file" accept="image/*" hidden onChange={onLogo} />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <input aria-label="Logo image URL" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="Or paste an image URL" style={{ width: 220, maxWidth: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 7 }} />
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={onLogoUrl}>Use URL</button>
+                  </div>
                 </div>
               </div>
               <div className="field" style={{ margin: 0 }}>

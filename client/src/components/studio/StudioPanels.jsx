@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { applyPreset, BANNERS, FONTS, OPTIONS, PALETTES, PRESETS, resolveTheme, SECTIONS, TEMPLATES, isLight } from '../../theme/themeConfig';
 import { useFonts } from '../../hooks/useStoreTheme';
 import { IconCheck, IconChevronDown, IconChevronUp, IconFacebook, IconInstagram, IconShuffle, IconTwitter, IconUpload, IconWhatsapp, IconYoutube } from '../common/Icons';
-import { downscaleImage, extractBrandColors } from './imageTools';
+import { extractBrandColors } from './imageTools';
+import { uploadImage } from '../../api/uploadApi';
+import { normalizeImageUrl } from '../../utils/imageUrl';
 
 const ALL_FONTS = Object.keys(FONTS);
 
@@ -213,8 +215,9 @@ export function LayoutPanel({ form, update }) {
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const banners = form.branding?.banners || [];
-  const custom = banners.filter((x) => x.startsWith('data:'));
+  const custom = banners.filter((x) => !BANNERS.includes(x));
   const multi = t.heroLayout === 'slider';
 
   const toggleBanner = (src) => {
@@ -233,16 +236,24 @@ export function LayoutPanel({ form, update }) {
     setBusy(true);
     setErr('');
     try {
-      const data = await downscaleImage(file, { max: 1600, quality: 0.78 });
+      const data = await uploadImage(file);
       patchBranding(update, { banners: multi ? [...banners, data].slice(-5) : [data, ...banners].slice(0, 5) });
-    } catch {
-      setErr('Could not read that image');
+    } catch (err) {
+      setErr(err.message || 'Could not upload that image');
     } finally {
       setBusy(false);
     }
   };
 
-  const gallery = [...custom, ...BANNERS];
+  const onAddUrl = () => {
+    const url = normalizeImageUrl(imageUrl);
+    if (!url) return setErr('Enter a valid HTTP or HTTPS image URL');
+    patchBranding(update, { banners: multi ? [...banners, url].slice(-5) : [url, ...banners].slice(0, 5) });
+    setImageUrl('');
+    setErr('');
+  };
+
+  const gallery = [...custom, ...BANNERS.filter((src) => !custom.includes(src))];
   return (
     <div className="st-panel">
       <Group title="Hero style">
@@ -268,6 +279,10 @@ export function LayoutPanel({ form, update }) {
               </button>
             );
           })}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input className="input" aria-label="Banner image URL" placeholder="Or paste an image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onAddUrl}>Use URL</button>
         </div>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onUpload} />
         {err && <p className="st-help" style={{ color: '#dc2626' }}>{err}</p>}
@@ -406,7 +421,6 @@ export function SectionsPanel({ form, update, focus }) {
 /* ===================== SETTINGS: currency, features, social ===================== */
 export const CURRENCIES = [['INR', '₹ Indian Rupee'], ['USD', '$ US Dollar'], ['EUR', '€ Euro'], ['GBP', '£ British Pound'], ['AED', 'د.إ UAE Dirham'], ['AUD', 'A$ Australian Dollar'], ['CAD', 'C$ Canadian Dollar'], ['SGD', 'S$ Singapore Dollar'], ['JPY', '¥ Japanese Yen']];
 const FEATURES = [
-  ['payments', 'Online payments', 'Accept cards & UPI (sandbox) alongside cash on delivery'],
   ['reviews', 'Star ratings', 'Show ratings on product cards and pages'],
   ['wishlist', 'Wishlist', 'Shoppers can heart products and filter by them'],
   ['coupons', 'Coupons', 'Discount codes at checkout'],

@@ -34,7 +34,7 @@ const products = [
   P(12, 'Cloud White Kicks', 'Footwear', 3599, null, 9, '1600185365483-26d7a4cc7519', 'Clean white leather sneakers that go with everything.', 12, false),
 ];
 
-const order = (n, name, email, status, method, payStatus, items, age, city) => {
+const order = (n, name, email, status, items, age, city) => {
   const lines = items.map(([pn, quantity]) => {
     const p = products[pn - 1];
     return { product: p._id, name: p.name, image: p.images[0], price: p.price, quantity };
@@ -51,7 +51,6 @@ const order = (n, name, email, status, method, payStatus, items, age, city) => {
     shippingFee: 0,
     total: subtotal,
     status,
-    payment: { method, status: payStatus, transactionId: payStatus === 'paid' ? `SIM-${n}A9F3C21B7` : '' },
     createdAt: daysAgo(age, n),
     updatedAt: daysAgo(age, n),
   };
@@ -64,12 +63,12 @@ export function seed() {
     stores: [],
     products: products.map((p) => ({ ...p })),
     orders: [
-      order(1, 'Riya Sharma', 'riya@example.com', 'pending', 'online', 'unpaid', [[1, 1], [5, 2]], 0, 'Mathura'),
-      order(2, 'Arjun Mehta', 'arjun@example.com', 'confirmed', 'online', 'paid', [[3, 1]], 1, 'Agra'),
-      order(3, 'Sneha Gupta', 'sneha@example.com', 'shipped', 'cod', 'unpaid', [[9, 1], [11, 1]], 2, 'Delhi'),
-      order(4, 'Kabir Singh', 'kabir@example.com', 'delivered', 'online', 'paid', [[2, 1]], 4, 'Noida'),
-      order(5, 'Ananya Rao', 'ananya@example.com', 'delivered', 'cod', 'unpaid', [[8, 2], [6, 1]], 6, 'Lucknow'),
-      order(6, 'Vikram Das', 'vikram@example.com', 'cancelled', 'cod', 'unpaid', [[4, 1]], 8, 'Jaipur'),
+      order(1, 'Riya Sharma', 'riya@example.com', 'pending', [[1, 1], [5, 2]], 0, 'Mathura'),
+      order(2, 'Arjun Mehta', 'arjun@example.com', 'confirmed', [[3, 1]], 1, 'Agra'),
+      order(3, 'Sneha Gupta', 'sneha@example.com', 'shipped', [[9, 1], [11, 1]], 2, 'Delhi'),
+      order(4, 'Kabir Singh', 'kabir@example.com', 'delivered', [[2, 1]], 4, 'Noida'),
+      order(5, 'Ananya Rao', 'ananya@example.com', 'delivered', [[8, 2], [6, 1]], 6, 'Lucknow'),
+      order(6, 'Vikram Das', 'vikram@example.com', 'cancelled', [[4, 1]], 8, 'Jaipur'),
     ],
   };
 }
