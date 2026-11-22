@@ -1,0 +1,62 @@
+.hero { position: relative; color: #fff; background: radial-gradient(1200px 600px at 75% 30%, rgba(124, 58, 237, .45), transparent 60%), radial-gradient(800px 500px at 10% 80%, rgba(34, 211, 238, .22), transparent 60%), linear-gradient(180deg, #0b0a1f 0%, #120f33 100%); overflow: hidden; }
+.hero::after { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%); pointer-events: none; }
+.hero-nav { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; padding: 20px 0; gap: 12px; }
+.hero-nav-links { display: flex; align-items: center; gap: 28px; font-size: 14px; font-weight: 600; }
+.hero-nav-links a { color: rgba(255,255,255,.75); text-decoration: none; }
+.hero-nav-links a:hover { color: #fff; }
+.hero-nav-links a.btn-light, .hero-nav-links a.btn-light:hover { color: var(--ink); }
+.hero-grid > * { min-width: 0; }
+.hero-grid { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; gap: 24px; min-height: calc(100vh - 80px); padding-bottom: 56px; }
+.hero h1 { font-size: clamp(40px, 6.4vw, 76px); line-height: 1.02; letter-spacing: -.045em; margin: 22px 0 22px; font-weight: 800; }
+.hero-sub { font-size: clamp(16px, 1.6vw, 19px); color: rgba(255,255,255,.72); line-height: 1.6; max-width: 540px; margin: 0 0 34px; }
+.hero-pill { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); }
+.hero-pill b { background: var(--grad); color: #fff; padding: 3px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .04em; }
+.hero-canvas { position: relative; height: min(640px, 78vh); }
+.hero-float { position: absolute; z-index: 3; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(14px); font-size: 13px; animation: floaty 6s ease-in-out infinite; box-shadow: 0 20px 40px -20px rgba(0,0,0,.6); }
+.hero-stats { display: flex; gap: 36px; margin-top: 46px; flex-wrap: wrap; }
+.hero-stats strong { display: block; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+.hero-stats span { font-size: 13px; color: rgba(255,255,255,.6); }
+
+.marquee { background: #0b0a1f; color: rgba(255,255,255,.55); border-top: 1px solid rgba(255,255,255,.08); overflow: hidden; }
+.marquee-track { display: flex; gap: 56px; padding: 22px 0; white-space: nowrap; animation: marquee 30s linear infinite; width: max-content; font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+.step { position: relative; padding: 26px; }
+.step-num { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--grad); margin-bottom: 18px; box-shadow: 0 10px 20px -10px rgba(99,102,241,.8); }
+.step h3, .module h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -.01em; }
+.step p, .module p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+.module { padding: 26px; }
+.module-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 18px; }
+
+.showcase { background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); }
+.mini-store { overflow: hidden; border-radius: 20px; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); }
+.mini-store-bar { display: flex; gap: 6px; padding: 10px 12px; background: #f1f5f9; border-bottom: 1px solid var(--line); }
+.mini-store-bar i { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; display: block; }
+.mini-store-hero { height: 150px; position: relative; display: flex; align-items: flex-end; padding: 16px; color: #fff; background-size: cover; background-position: center; }
+.mini-store-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; }
+.mini-store-grid div { aspect-ratio: 1; border-radius: 10px; background-size: cover; background-position: center; }
+
+.roles { background: #0b0a1f; color: #fff; position: relative; overflow: hidden; }
+.roles::before { content: ''; position: absolute; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(124,58,237,.35), transparent 65%); top: -300px; right: -200px; }
+.role-card { position: relative; padding: 30px; border-radius: 20px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+.role-card ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 10px; font-size: 14px; color: rgba(255,255,255,.75); }
+.role-card li { display: flex; gap: 10px; align-items: flex-start; }
+
+.tech-chip { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line); font-size: 14px; font-weight: 700; }
+
+.cta-band { position: relative; overflow: hidden; border-radius: 28px; padding: clamp(36px, 6vw, 72px); color: #fff; background: radial-gradient(600px 300px at 90% 0%, rgba(34,211,238,.35), transparent 60%), var(--grad); }
+
+.footer { background: #0b0a1f; color: rgba(255,255,255,.6); padding: 56px 0 28px; font-size: 14px; }
+.footer a { text-decoration: none; color: rgba(255,255,255,.6); }
+.footer a:hover { color: #fff; }
+
+@media (max-width: 920px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-top: 20px; text-align: center; }
+  .hero-sub { margin-left: auto; margin-right: auto; }
+  .hero-ctas, .hero-stats { justify-content: center; }
+  .hero-canvas { height: 380px; order: -1; margin-top: -10px; }
+  .hero-nav-links .hide-sm { display: none; }
+  .hero-float { display: none; }
+}
+@media (max-width: 520px) { .hero-nav-links { gap: 14px; } }
