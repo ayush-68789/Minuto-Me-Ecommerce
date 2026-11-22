@@ -255,8 +255,6 @@ export default function Sidebar({ store, isOpen: openProp, onClose: closeProp })
           {storeSlug ? (
             <Link
               to={`/store/${storeSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
               style={{
                 display: 'flex',
                 alignItems: 'center',

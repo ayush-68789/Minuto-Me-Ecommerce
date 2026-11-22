@@ -81,8 +81,6 @@ export default function DashboardHome() {
             {store?.slug && (
               <Link
                 to={`/store/${store.slug}`}
-                target="_blank"
-                rel="noreferrer"
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',

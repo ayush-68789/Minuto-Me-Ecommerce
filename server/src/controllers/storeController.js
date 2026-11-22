@@ -56,12 +56,28 @@ export const createStore = async (req, res, next) => {
   try {
     const input = req.body || {};
     const values = pickStoreFields(input);
-    values.slug = normalizeSlug(values.slug || values.businessName);
-    if (!values.businessName || !values.category || !values.slug) {
+    const baseSlug = normalizeSlug(values.slug || values.businessName);
+    if (!values.businessName || !values.category || !baseSlug) {
       return res.status(400).json({ message: 'Business name and category are required' });
     }
-    if (values.slug.length > 80) return res.status(400).json({ message: 'Store slug must be 80 characters or fewer' });
-    const store = await Store.create({ ...values, owner: req.user._id });
+    if (baseSlug.length > 80) return res.status(400).json({ message: 'Store URL must be 80 characters or fewer' });
+
+    // Keep the requested URL when available, otherwise add a number. The unique
+    // index is the final authority, so retry duplicate-key races between owners.
+    let store;
+    for (let suffix = 1; suffix <= 10000; suffix += 1) {
+      const tail = suffix === 1 ? '' : `-${suffix}`;
+      const candidate = `${baseSlug.slice(0, 80 - tail.length)}${tail}`;
+      try {
+        store = await Store.create({ ...values, slug: candidate, owner: req.user._id });
+        break;
+      } catch (err) {
+        const isSlugCollision = err.code === 11000 && (err.keyPattern?.slug || err.keyValue?.slug);
+        if (isSlugCollision) continue;
+        throw err;
+      }
+    }
+    if (!store) return res.status(409).json({ message: 'Could not find an available store URL. Please try again.' });
     await User.updateOne({ _id: req.user._id, store: null }, { $set: { store: store._id } });
     req.store = store;
 

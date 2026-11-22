@@ -14,6 +14,7 @@ function CustomerOnly({ children }) {
   const { slug } = useParams();
   const location = useLocation();
   if (loading || storeLoading) return <div style={{ padding: 32 }}>Loading account…</div>;
+  if (user?.role === 'client' && String(user.store) === String(store?._id)) return <Navigate to={`/store/${slug}`} replace />;
   if (user?.role !== 'customer' || String(user.customerStore) !== String(store?._id)) return <Navigate to={`/store/${slug}/login`} replace state={{ from: location.pathname }} />;
   return children;
 }

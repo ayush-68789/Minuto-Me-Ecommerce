@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { errorMessage } from '../../api/authApi';
 import AuthLayout, { ErrorBox } from './AuthLayout';
@@ -15,10 +15,15 @@ export default function CustomerLogin() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const base = `/store/${slug}`;
+  const isStoreOwner = user?.role === 'client' && String(user.store) === String(store?._id);
 
   useEffect(() => {
     if (user?.role === 'customer' && String(user.customerStore) === String(store?._id)) navigate(location.state?.from || base, { replace: true });
   }, [user, store?._id, navigate, location.state, base]);
+
+  // The owner is already authenticated on their own storefront. Keep that
+  // session instead of presenting a customer login form that could replace it.
+  if (isStoreOwner) return <Navigate to={base} replace />;
 
   const submit = async (event) => {
     event.preventDefault();

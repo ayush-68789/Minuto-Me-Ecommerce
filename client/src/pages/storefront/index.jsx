@@ -20,14 +20,14 @@ import '../../components/storefront/storefront.css';
 
 function StoreShell() {
   const { store, loading, error } = useStore();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const theme = useStoreTheme(store);
   useEffect(() => {
     if (store?.businessName) document.title = `${store.businessName} · Shop online`;
     return () => { document.title = 'Minuto Me — Launch your store in minutes'; };
   }, [store?.businessName]);
 
-  if (loading) return <Loader full label="Loading store…" />;
+  if (loading || authLoading) return <Loader full label="Loading store…" />;
   if (error) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center' }}>

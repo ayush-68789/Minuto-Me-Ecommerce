@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { errorMessage } from '../../api/authApi';
 import AuthLayout, { ErrorBox } from './AuthLayout';
+import { useStore } from '../../context/StoreContext';
 
 export default function CustomerRegister() {
   const { slug } = useParams();
-  const { signupCustomer } = useAuth();
+  const { signupCustomer, user } = useAuth();
+  const { store } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({
@@ -16,6 +18,7 @@ export default function CustomerRegister() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const base = `/store/${slug}`;
+  if (user?.role === 'client' && String(user.store) === String(store?._id)) return <Navigate to={base} replace />;
 
   const submit = async (event) => {
     event.preventDefault();

@@ -104,7 +104,6 @@ export default function CreateStore() {
     if (i === 0) {
       if (!form.businessName.trim()) return 'Please enter your store name';
       if (!slug) return 'Please choose a store link';
-      if (slugState === 'taken') return 'That store link is taken. Try another one';
     }
     return '';
   };
@@ -216,8 +215,9 @@ export default function CreateStore() {
                   <div className={`ob-slug ${slugState}`}>
                     <span>minuto.me/store/</span>
                     <input id="slug" value={form.slug} placeholder="urban-threads" maxLength={80} onChange={(e) => { setSlugTouched(true); set({ slug: slugify(e.target.value) }); }} />
-                    <b>{slugState === 'checking' ? '…' : slugState === 'free' ? '✓ Available' : slugState === 'taken' ? '✕ Taken' : ''}</b>
+                    <b>{slugState === 'checking' ? '…' : slugState === 'free' ? '✓ Available' : slugState === 'taken' ? 'Will add a number' : ''}</b>
                   </div>
+                  {slugState === 'taken' && <small className="muted">That link is in use. We’ll give your store a unique URL when you publish.</small>}
                 </div>
                 <div className="field">
                   <span className="label">What do you sell?</span>

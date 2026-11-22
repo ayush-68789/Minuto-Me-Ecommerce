@@ -123,7 +123,7 @@ export default function BrandingEditor({ store, products, onSave, isSaving = fal
         </div>
         <div className="be-actions">
           <span className="be-subs" title="Newsletter sign-ups from your storefront">✉️ {subscriberCount} subscriber{subscriberCount === 1 ? '' : 's'}</span>
-          {store?.slug && <Link to={`/store/${store.slug}`} target="_blank" className="btn btn-ghost btn-sm"><IconEye size={15} /> Live store</Link>}
+          {store?.slug && <Link to={`/store/${store.slug}`} className="btn btn-ghost btn-sm"><IconEye size={15} /> Live store</Link>}
           <button type="button" className="btn btn-ghost btn-sm be-mprev" onClick={() => setMobilePreview(true)}><IconEye size={15} /> Preview</button>
           {dirty && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm(toForm(store))}>Discard</button>}
           <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={isSaving || !dirty}>{isSaving ? 'Saving…' : dirty ? 'Save changes' : 'All saved ✓'}</button>

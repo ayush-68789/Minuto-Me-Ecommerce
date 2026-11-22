@@ -158,6 +158,10 @@ const login = async (req, res, next, audience = 'owner') => {
             user = await User.findOne({ email, role: 'customer', customerStore: customerStore._id }).select('+password');
             // Bind legacy customer accounts to the first store they sign in to after this migration.
             if (!user) user = await User.findOne({ email, role: 'customer', customerStore: null }).select('+password');
+            if (!user) {
+                const ownerAccount = await User.exists({ email, role: { $in: ['client', 'admin'] } });
+                if (ownerAccount) return res.status(403).json({ message: 'This email is a store owner account. You are already signed in as the owner; customer sign-in requires a customer account.' });
+            }
         } else {
             user = await User.findOne({ email, role: { $in: ['client', 'admin'] } }).select('+password');
         }

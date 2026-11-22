@@ -94,15 +94,13 @@ export default function DashboardLayout({ children, store = null }) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {store?.slug && (
-              <a
-                href={`/store/${store.slug}`}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                to={`/store/${store.slug}`}
                 className="btn-secondary"
                 style={{ fontSize: 13, textDecoration: 'none' }}
               >
                 View Live Store ↗
-              </a>
+              </Link>
             )}
             <Link to="/profile" style={{ textDecoration: 'none' }}>
               <div
