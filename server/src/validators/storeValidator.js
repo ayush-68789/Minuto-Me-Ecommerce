@@ -1,5 +1,8 @@
 // Owner: M2 - Products & Dashboard
 
+// Used by the public newsletter route (storefrontRoutes.js)
+export const isEmail = (value) => typeof value === 'string' && value.length <= 254 && /^\S+@\S+\.\S+$/.test(value.trim());
+
 export const validateCreateStore = (req, res, next) => {
   const body = req.body || {};
   const errors = [];
@@ -75,6 +78,7 @@ export const validateUpdateStore = (req, res, next) => {
 };
 
 export default {
+  isEmail,
   validateCreateStore,
   validateUpdateStore,
 };
