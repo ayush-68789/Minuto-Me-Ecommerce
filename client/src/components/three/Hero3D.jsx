@@ -1,4 +1,3 @@
-// Owner: Member 4 — Storefront 3D Scene
 // Realistic 3D hero scene: shopping bag, gift box and credit card, built procedurally with three.js
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';

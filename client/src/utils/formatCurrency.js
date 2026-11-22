@@ -1,4 +1,4 @@
-// Owner: Member 4 — Currency formatting utility
+// Owner: M3
 export default function formatCurrency(amount, currency = 'INR') {
   try {
     return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount || 0);

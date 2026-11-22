@@ -12,4 +12,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // If session expired or unauthorized on protected resource, clear stale store id
+    if (error.response?.status === 401 && !error.config.url?.includes('/auth/login') && !error.config.url?.includes('/auth/signup')) {
+      localStorage.removeItem('minuto_store_id');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

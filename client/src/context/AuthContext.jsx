@@ -1,6 +1,6 @@
 // Owner: M1
 import { createContext, useCallback, useEffect, useState } from 'react';
-import { fetchMe, loginRequest, logoutRequest, signupRequest } from '../api/authApi';
+import { fetchMe, loginRequest, customerLoginRequest, logoutRequest, signupRequest, customerSignupRequest, deleteCustomerRequest, updateCustomerRequest } from '../api/authApi';
 
 export const AuthContext = createContext(null);
 
@@ -22,8 +22,20 @@ export function AuthProvider({ children }) {
     return u;
   }, []);
 
+  const loginCustomer = useCallback(async (data) => {
+    const u = await customerLoginRequest(data);
+    setUser(u);
+    return u;
+  }, []);
+
   const signup = useCallback(async (data) => {
     const u = await signupRequest(data);
+    setUser(u);
+    return u;
+  }, []);
+
+  const signupCustomer = useCallback(async (data) => {
+    const u = await customerSignupRequest(data);
     setUser(u);
     return u;
   }, []);
@@ -43,8 +55,20 @@ export function AuthProvider({ children }) {
     return u;
   }, []);
 
+  const deleteAccount = useCallback(async (storeSlug) => {
+    await deleteCustomerRequest(storeSlug);
+    localStorage.removeItem('minuto_store_id');
+    setUser(null);
+  }, []);
+
+  const updateCustomerProfile = useCallback(async (data) => {
+    const u = await updateCustomerRequest(data);
+    setUser(u);
+    return u;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, loginCustomer, signup, signupCustomer, logout, deleteAccount, updateCustomerProfile, refresh }}>
       {children}
     </AuthContext.Provider>
   );

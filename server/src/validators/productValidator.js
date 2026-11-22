@@ -1,99 +1,37 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M4
+import { z } from 'zod';
 
-export const validateCreateProduct = (req, res, next) => {
-  const body = req.body || {};
-  const errors = [];
+const imageUrl = z.string().max(2048).refine((value) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password;
+  } catch { return false; }
+}, 'Image must be an HTTP or HTTPS URL');
 
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) {
-    errors.push('Product name is required');
-  } else if (name.length > 120) {
-    errors.push('Product name must be 120 characters or fewer');
-  }
+const productSchema = z.object({
+  name: z.string({ required_error: 'Product name is required' }).trim().min(1, 'Product name cannot be empty'),
+  description: z.string().optional().default(''),
+  price: z.coerce.number({ required_error: 'Price is required' }).min(0, 'Price must be non-negative'),
+  comparePrice: z.coerce.number().min(0, 'Compare price must be non-negative').optional().nullable(),
+  images: z.array(imageUrl).max(20).optional().default([]),
+  category: z.string().trim().optional().default('General'),
+  stock: z.coerce.number().int().min(0, 'Stock must be 0 or greater').optional().default(0),
+  isActive: z.boolean().optional().default(true),
+});
 
-  const price = Number(body.price);
-  if (body.price === undefined || body.price === null || isNaN(price)) {
-    errors.push('Price is required and must be a valid number');
-  } else if (price < 0) {
-    errors.push('Price cannot be negative');
-  }
+const updateProductSchema = productSchema.partial();
 
-  if (body.compareAtPrice !== undefined && body.compareAtPrice !== null && body.compareAtPrice !== '') {
-    const comparePrice = Number(body.compareAtPrice);
-    if (isNaN(comparePrice) || comparePrice < 0) {
-      errors.push('Compare at price must be a non-negative number');
-    }
-  }
-
-  if (body.stock !== undefined && body.stock !== null && body.stock !== '') {
-    const stock = Number(body.stock);
-    if (!Number.isInteger(stock) || stock < 0) {
-      errors.push('Stock must be a non-negative whole number');
-    }
-  }
-
-  if (body.description && typeof body.description === 'string' && body.description.length > 2000) {
-    errors.push('Description cannot exceed 2000 characters');
-  }
-
-  if (body.status && !['active', 'draft', 'archived'].includes(body.status)) {
-    errors.push('Status must be active, draft, or archived');
-  }
-
-  if (errors.length > 0) {
-    return res.status(400).json({
-      message: errors[0],
-      errors,
-      success: false,
-    });
-  }
-
-  return next();
+const validateProduct = (data) => {
+  return productSchema.safeParse(data);
 };
 
-export const validateUpdateProduct = (req, res, next) => {
-  const body = req.body || {};
-  const errors = [];
-
-  if (body.name !== undefined) {
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    if (!name) {
-      errors.push('Product name cannot be empty');
-    } else if (name.length > 120) {
-      errors.push('Product name must be 120 characters or fewer');
-    }
-  }
-
-  if (body.price !== undefined) {
-    const price = Number(body.price);
-    if (isNaN(price) || price < 0) {
-      errors.push('Price must be a non-negative number');
-    }
-  }
-
-  if (body.stock !== undefined) {
-    const stock = Number(body.stock);
-    if (!Number.isInteger(stock) || stock < 0) {
-      errors.push('Stock must be a non-negative whole number');
-    }
-  }
-
-  if (body.status !== undefined && !['active', 'draft', 'archived'].includes(body.status)) {
-    errors.push('Status must be active, draft, or archived');
-  }
-
-  if (errors.length > 0) {
-    return res.status(400).json({
-      message: errors[0],
-      errors,
-      success: false,
-    });
-  }
-
-  return next();
+const validateProductUpdate = (data) => {
+  return updateProductSchema.safeParse(data);
 };
 
-export default {
-  validateCreateProduct,
-  validateUpdateProduct,
+export {
+  productSchema,
+  updateProductSchema,
+  validateProduct,
+  validateProductUpdate,
 };

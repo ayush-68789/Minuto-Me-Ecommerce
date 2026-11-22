@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 import { card, formatMoney } from './money';
 
 export default function CartSummary({ subtotal, shippingFee = 0, total, currency, children }) {

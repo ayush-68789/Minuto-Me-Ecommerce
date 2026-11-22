@@ -1,87 +1,23 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M4  (read by M3 storefront and M5 cart/orders)
 import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 120,
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: 2000,
-      default: '',
-    },
-    price: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    compareAtPrice: {
-      type: Number,
-      min: 0,
-      default: null,
-    },
-    stock: {
-      type: Number,
-      required: true,
-      min: 0,
-      default: 0,
-    },
-    sku: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    category: {
-      type: String,
-      trim: true,
-      default: 'General',
-    },
-    images: {
-      type: [String],
-      default: [],
-    },
-    imageUrl: {
-      type: String,
-      default: '',
-    },
-    store: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Store',
-      required: true,
-      index: true,
-    },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      index: true,
-    },
-    status: {
-      type: String,
-      enum: ['active', 'draft', 'archived'],
-      default: 'active',
-    },
-    isFeatured: {
-      type: Boolean,
-      default: false,
-    },
+    // Multi-tenancy: EVERY query must filter by store
+    store: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
+
+    name: { type: String, required: true, trim: true },
+    description: { type: String, default: '' },
+    price: { type: Number, required: true, min: 0 },
+    comparePrice: { type: Number, min: 0 }, // optional "original price"
+    images: [{ type: String }], // image URLs
+    category: { type: String, default: 'General', trim: true },
+    stock: { type: Number, default: 0, min: 0 },
+    isActive: { type: Boolean, default: true }, // hide from storefront without deleting
   },
   { timestamps: true }
 );
 
-// Keep imageUrl and images array in sync
-productSchema.pre('save', function (next) {
-  if (this.imageUrl && (!this.images || this.images.length === 0)) {
-    this.images = [this.imageUrl];
-  } else if (this.images && this.images.length > 0 && !this.imageUrl) {
-    this.imageUrl = this.images[0];
-  }
-  if (typeof next === 'function') next();
-});
+productSchema.index({ store: 1, category: 1 });
 
-export default mongoose.models.Product || mongoose.model('Product', productSchema);
+export default mongoose.model('Product', productSchema);

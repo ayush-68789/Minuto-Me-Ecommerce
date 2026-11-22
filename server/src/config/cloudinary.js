@@ -1,81 +1,63 @@
-// Owner: Member 5 - Onboarding & Studio
-// Cloudinary is optional: with CLOUDINARY_URL (or the three CLOUDINARY_* keys) set, store images go to the CDN;
-// without it (or without the package installed) uploads fall back to local disk in middleware/upload.js.
+import './loadEnv.js';
+import { v2 as cloudinary } from 'cloudinary';
 
-let cloudinary = null;
+const isConfigured = () =>
+  Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+  );
 
-try {
-  const mod = await import('cloudinary');
-  const sdk = mod.v2 || mod.default?.v2;
-  const { CLOUDINARY_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
-
-  if (sdk && CLOUDINARY_URL) {
-    // The SDK reads CLOUDINARY_URL from the environment on its own
-    sdk.config({ secure: true });
-    cloudinary = sdk;
-  } else if (sdk && CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
-    sdk.config({
-      cloud_name: CLOUDINARY_CLOUD_NAME,
-      api_key: CLOUDINARY_API_KEY,
-      api_secret: CLOUDINARY_API_SECRET,
-      secure: true,
-    });
-    cloudinary = sdk;
-  }
-} catch {
-  // Package not installed: local disk uploads only
+function configureCloudinary() {
+  if (!isConfigured()) return false;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+  return true;
 }
 
-export const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || 'minuto-me';
-
-export const isCloudinaryEnabled = () => Boolean(cloudinary);
-
 /**
- * Upload an in-memory file buffer. Resolves to { url, publicId, width, height }.
+ * Uploads a memory buffer directly to Cloudinary.
+ * Never stores untrusted files on the local filesystem.
  */
-export const uploadBuffer = (buffer, { folder = CLOUDINARY_FOLDER, publicId } = {}) =>
-  new Promise((resolve, reject) => {
-    if (!cloudinary) {
-      reject(new Error('Cloudinary is not configured'));
-      return;
-    }
+export async function uploadBufferToCloudinary(buffer, { folder = 'minuto_stores', filename } = {}) {
+  if (!isConfigured()) {
+    const error = new Error('Image upload service is not configured');
+    error.status = 503;
+    throw error;
+  }
+  configureCloudinary();
 
-    const stream = cloudinary.uploader.upload_stream(
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
-        public_id: publicId,
+        public_id: filename,
         resource_type: 'image',
-        overwrite: false,
-        // Cap huge originals; the storefront asks for smaller sizes through the URL
-        transformation: [{ width: 2400, height: 2400, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
+        allowed_formats: ['jpg', 'png', 'webp', 'gif'],
+        transformation: [{ max_width: 2000, crop: 'limit' }],
       },
       (err, result) => {
-        if (err) return reject(err);
-        return resolve({
-          url: result.secure_url,
+        if (err) {
+          const error = new Error('Failed to upload image to cloud storage');
+          error.status = 502;
+          return reject(error);
+        }
+        resolve({
+          url: result.secure_url || result.url,
           publicId: result.public_id,
-          width: result.width,
-          height: result.height,
+          format: result.format,
+          bytes: result.bytes,
         });
       }
     );
-    stream.end(buffer);
+
+    uploadStream.end(buffer);
   });
+}
 
-/**
- * Best-effort delete of an image we uploaded earlier. Never throws.
- */
-export const deleteByUrl = async (url) => {
-  if (!cloudinary || typeof url !== 'string' || !url.includes('res.cloudinary.com')) return false;
-  // .../upload/v1712345678/minuto-me/stores/abc123.jpg -> minuto-me/stores/abc123
-  const match = /\/upload\/(?:[^/]+\/)*?v\d+\/(.+)\.[a-z0-9]+$/i.exec(url);
-  if (!match) return false;
-  try {
-    await cloudinary.uploader.destroy(match[1]);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
+export { cloudinary, isConfigured, configureCloudinary };
 export default cloudinary;

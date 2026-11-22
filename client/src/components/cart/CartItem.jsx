@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 import { formatMoney } from './money';
 
 export default function CartItem({ item, currency, issue, onQuantityChange, onRemove }) {

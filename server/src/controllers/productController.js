@@ -1,291 +1,267 @@
-// Owner: M2 - Products & Dashboard
+// Owner: M4
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
-import Store from '../models/Store.js';
+import { validateProduct, validateProductUpdate } from '../validators/productValidator.js';
+import { resolveMyStore } from './storeController.js';
+import { escapeRegex, parsePagination } from '../utils/queryHelper.js';
+import { logAudit } from '../utils/auditLogger.js';
 
-/**
- * Create a new product under the user's store
- */
-export const createProduct = async (req, res, next) => {
-  try {
-    const storeId =
-      req.store?._id ||
-      req.body.store ||
-      req.body.storeId ||
-      req.headers['x-store-id'] ||
-      req.user.store;
-
-    if (!storeId) {
-      return res.status(400).json({
-        message: 'A store must be selected or created before adding products',
-        success: false,
-      });
-    }
-
-    const store = await Store.findById(storeId);
-    if (!store) {
-      return res.status(404).json({ message: 'Store not found', success: false });
-    }
-
-    if (store.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        message: 'You do not have permission to add products to this store',
-        success: false,
-      });
-    }
-
-    const {
-      name,
-      description = '',
-      price,
-      compareAtPrice = null,
-      stock = 0,
-      sku = '',
-      category = 'General',
-      images = [],
-      imageUrl = '',
-      status = 'active',
-      isFeatured = false,
-    } = req.body;
-
-    const resolvedImages = Array.isArray(images) && images.length > 0 ? images : imageUrl ? [imageUrl] : [];
-    const resolvedImageUrl = imageUrl || (resolvedImages.length > 0 ? resolvedImages[0] : '');
-
-    const product = await Product.create({
-      name: name.trim(),
-      description: description.trim(),
-      price: Number(price),
-      compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
-      stock: Number(stock),
-      sku: sku.trim(),
-      category: category.trim(),
-      images: resolvedImages,
-      imageUrl: resolvedImageUrl,
-      store: store._id,
-      owner: req.user._id,
-      status,
-      isFeatured: Boolean(isFeatured),
-    });
-
-    return res.status(201).json({
-      success: true,
-      product,
-    });
-  } catch (err) {
-    return next(err);
-  }
+// The logged-in owner's store -- never trust a store id sent by the client
+const resolveStoreId = async (req) => {
+  const store = await resolveMyStore(req);
+  return store ? store._id.toString() : null;
 };
 
-/**
- * List products for merchant dashboard with filtering & pagination
- */
+const SORT_WHITELIST = {
+  price_asc: { price: 1 },
+  price_desc: { price: -1 },
+  stock_asc: { stock: 1 },
+  stock_desc: { stock: -1 },
+  name_asc: { name: 1 },
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+};
+
+// GET /api/products
+// Fetch all products for a store with filtering, search, and bounded pagination
 export const getProducts = async (req, res, next) => {
   try {
-    const storeId =
-      req.query.store ||
-      req.query.storeId ||
-      req.headers['x-store-id'] ||
-      req.user?.store;
-
-    const filter = {};
-
-    if (storeId) {
-      filter.store = storeId;
-    } else if (req.user && req.user.role !== 'admin') {
-      filter.owner = req.user._id;
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ message: 'Store ID is required' });
     }
 
-    if (req.query.category && req.query.category !== 'all') {
-      filter.category = req.query.category;
-    }
+    const { search, category, status, sort } = req.query;
+    const { page, limit, skip } = parsePagination(req.query, 50, 100);
 
-    if (req.query.status && req.query.status !== 'all') {
-      filter.status = req.query.status;
-    }
+    const query = { store: storeId };
 
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search.trim(), 'i');
-      filter.$or = [
-        { name: searchRegex },
-        { description: searchRegex },
-        { sku: searchRegex },
+    if (search && typeof search === 'string' && search.trim()) {
+      const safeSearch = escapeRegex(search.trim());
+      query.$or = [
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { description: { $regex: safeSearch, $options: 'i' } },
       ];
     }
 
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const skip = (page - 1) * limit;
+    if (category && typeof category === 'string' && category !== 'All') {
+      query.category = category.trim().slice(0, 80);
+    }
 
-    const [products, total] = await Promise.all([
-      Product.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('store', 'name slug'),
-      Product.countDocuments(filter),
+    if (status === 'active') {
+      query.isActive = true;
+    } else if (status === 'inactive') {
+      query.isActive = false;
+    }
+
+    const sortOptions = SORT_WHITELIST[sort] || SORT_WHITELIST.newest;
+
+    const [products, totalCount, categories] = await Promise.all([
+      Product.find(query).sort(sortOptions).skip(skip).limit(limit).lean(),
+      Product.countDocuments(query),
+      Product.distinct('category', { store: storeId }),
     ]);
 
-    return res.status(200).json({
+    res.json({
       success: true,
       products,
-      pagination: {
-        total,
-        page,
-        pages: Math.ceil(total / limit) || 1,
-        limit,
-      },
+      total: totalCount,
+      page,
+      totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+      categories: categories.filter(Boolean),
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
-/**
- * Get product by ID
- */
+// GET /api/products/:id
+// Fetch single product by id for the store
 export const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id || req.params.productId).populate(
-      'store',
-      'name slug owner'
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const storeId = await resolveStoreId(req);
+    const product = storeId && (await Product.findOne({ _id: req.params.id, store: storeId }));
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json({ success: true, product });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/products
+// Create a new product in the store
+export const createProduct = async (req, res, next) => {
+  try {
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ message: 'Store ID is required to create a product' });
+    }
+
+    const validation = validateProduct(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: validation.error.flatten().fieldErrors,
+      });
+    }
+
+    const productData = {
+      ...validation.data,
+      store: storeId,
+    };
+
+    const product = await Product.create(productData);
+
+    await logAudit({
+      req,
+      storeId,
+      action: 'PRODUCT_CREATE',
+      resourceType: 'Product',
+      resourceId: product._id,
+      details: { name: product.name, price: product.price, stock: product.stock },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Product created successfully',
+      product,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PUT /api/products/:id
+// Update product by id
+export const updateProduct = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found or not owned by this store' });
+    }
+
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ message: 'Store ID is required' });
+    }
+
+    const validation = validateProductUpdate(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: validation.error.flatten().fieldErrors,
+      });
+    }
+
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, store: storeId },
+      { $set: validation.data },
+      { new: true, runValidators: true }
     );
 
     if (!product) {
-      return res.status(404).json({ message: 'Product not found', success: false });
+      return res.status(404).json({ message: 'Product not found or not owned by this store' });
     }
 
-    return res.status(200).json({
+    await logAudit({
+      req,
+      storeId,
+      action: 'PRODUCT_UPDATE',
+      resourceType: 'Product',
+      resourceId: product._id,
+      details: validation.data,
+    });
+
+    res.json({
       success: true,
+      message: 'Product updated successfully',
       product,
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
-/**
- * Update an existing product
- */
-export const updateProduct = async (req, res, next) => {
-  try {
-    const product = req.product || (await Product.findById(req.params.id || req.params.productId));
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found', success: false });
-    }
-
-    const allowed = [
-      'name',
-      'description',
-      'price',
-      'compareAtPrice',
-      'stock',
-      'sku',
-      'category',
-      'images',
-      'imageUrl',
-      'status',
-      'isFeatured',
-    ];
-
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) {
-        if (key === 'price' || key === 'compareAtPrice' || key === 'stock') {
-          product[key] = req.body[key] !== null && req.body[key] !== '' ? Number(req.body[key]) : null;
-        } else if (typeof req.body[key] === 'string') {
-          product[key] = req.body[key].trim();
-        } else {
-          product[key] = req.body[key];
-        }
-      }
-    }
-
-    if (req.body.imageUrl && (!product.images || product.images.length === 0)) {
-      product.images = [req.body.imageUrl];
-    }
-
-    await product.save();
-
-    return res.status(200).json({
-      success: true,
-      product,
-    });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-/**
- * Delete a product
- */
+// DELETE /api/products/:id
+// Delete product from store
 export const deleteProduct = async (req, res, next) => {
   try {
-    const product = req.product || (await Product.findById(req.params.id || req.params.productId));
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found', success: false });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found or not owned by this store' });
     }
 
-    await Product.findByIdAndDelete(product._id);
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ message: 'Store ID is required' });
+    }
 
-    return res.status(200).json({
+    const product = await Product.findOneAndDelete({
+      _id: req.params.id,
+      store: storeId,
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found or not owned by this store' });
+    }
+
+    await logAudit({
+      req,
+      storeId,
+      action: 'PRODUCT_DELETE',
+      resourceType: 'Product',
+      resourceId: req.params.id,
+      details: { name: product.name },
+    });
+
+    res.json({
       success: true,
       message: 'Product deleted successfully',
-      productId: product._id,
+      deletedId: req.params.id,
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
-/**
- * Public catalog view for storefront customers
- */
-export const getPublicProducts = async (req, res, next) => {
+// PATCH /api/products/:id/toggle-status
+// Quick toggle active / inactive status
+export const toggleProductStatus = async (req, res, next) => {
   try {
-    const { storeId } = req.params;
-    let queryStore = null;
-
-    if (storeId.match(/^[0-9a-fA-F]{24}$/)) {
-      queryStore = await Store.findById(storeId);
-    } else {
-      queryStore = await Store.findOne({ slug: storeId });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    if (!queryStore) {
-      return res.status(404).json({ message: 'Store not found', success: false });
+    const storeId = await resolveStoreId(req);
+    const product = await Product.findOne({ _id: req.params.id, store: storeId });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    const filter = {
-      store: queryStore._id,
-      status: 'active',
-    };
+    product.isActive = !product.isActive;
+    await product.save();
 
-    if (req.query.category && req.query.category !== 'all') {
-      filter.category = req.query.category;
-    }
+    await logAudit({
+      req,
+      storeId,
+      action: 'PRODUCT_TOGGLE_STATUS',
+      resourceType: 'Product',
+      resourceId: product._id,
+      details: { isActive: product.isActive },
+    });
 
-    const products = await Product.find(filter).sort({ isFeatured: -1, createdAt: -1 });
-
-    return res.status(200).json({
+    res.json({
       success: true,
-      store: {
-        id: queryStore._id,
-        name: queryStore.name,
-        slug: queryStore.slug,
-        logo: queryStore.logo,
-        banner: queryStore.banner,
-        category: queryStore.category,
-      },
-      products,
+      message: `Product marked as ${product.isActive ? 'active' : 'inactive'}`,
+      product,
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
-};
-
-export default {
-  createProduct,
-  getProducts,
-  getProductById,
-  updateProduct,
-  deleteProduct,
-  getPublicProducts,
 };

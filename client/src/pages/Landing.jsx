@@ -1,4 +1,4 @@
-// Owner: Member 4 -- Public home page at "/"
+// Owner: M1 -- public home page at "/"
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
@@ -9,7 +9,6 @@ import {
 import './Landing.css';
 
 const Hero3D = lazy(() => import('../components/three/Hero3D'));
-const img = (id, w = 600) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=75`;
 
 const STEPS = [
   ['Sign up / Log in', 'Create your free account in seconds and get your own store workspace.'],
@@ -25,15 +24,9 @@ const MODULES = [
   [IconBrush, 'Store Builder', 'Pick a template, set theme colors, upload your logo and banners.', '#fdf2f8', '#db2777'],
   [IconBox, 'Product Management', 'Add, edit and delete products with categories, stock, pricing and images.', '#ecfeff', '#0891b2'],
   [IconStore, 'Storefront', 'A public, branded store page per owner with search, filters and product pages.', '#f0fdf4', '#16a34a'],
-  [IconCart, 'Cart & Checkout', 'Add to cart, order summary and secure (sandbox) payment flow.', '#fff7ed', '#ea580c'],
+  [IconCart, 'Cart & Checkout', 'Add to cart, order summary and streamlined checkout flow.', '#fff7ed', '#ea580c'],
   [IconTruck, 'Order Management', 'Order history, live status tracking from pending to delivered.', '#f5f3ff', '#7c3aed'],
   [IconAdmin, 'Admin Panel', 'Monitor users and stores, moderate content and view platform analytics.', '#fef2f2', '#dc2626'],
-];
-
-const SHOWCASE = [
-  { name: 'Nova Lifestyle', tag: 'Fashion · Modern', color: '#4f46e5', hero: '1441986300917-64674bd600d8', items: ['1542291026-7eec264c27ff', '1523275335684-37898b6baf30', '1572635196237-14b3f281503f'], to: '/store/demo' },
-  { name: 'Pulse Electronics', tag: 'Tech · Bold', color: '#0f172a', hero: '1472851294608-062f824d29cc', items: ['1505740420928-5e560c06d30e', '1546868871-7041f2a55e12', '1526170375885-4d8ecf77b99f'], to: '/store/demo' },
-  { name: 'Bloom Beauty', tag: 'Beauty · Minimal', color: '#db2777', hero: '1607082348824-0a96f2a4b9da', items: ['1585386959984-a4155224a1ad', '1553062407-98eeb64c6a62', '1600185365483-26d7a4cc7519'], to: '/store/demo' },
 ];
 
 const ROLES = [
@@ -42,7 +35,7 @@ const ROLES = [
   ['Admin', 'Keep the platform healthy and every storefront trustworthy.', ['Manage users & stores', 'Handle reports & disputes', 'Platform-wide analytics'], '#f97316'],
 ];
 
-const TECH = ['MongoDB', 'Express.js', 'React', 'Node.js', 'JWT Auth', 'bcrypt', 'Cloudinary', 'Razorpay / Stripe', 'three.js'];
+const TECH = ['MongoDB', 'Express.js', 'React', 'Node.js', 'JWT Auth', 'bcrypt', 'Cloudinary', 'three.js'];
 
 export default function Landing() {
   const { user, logout } = useAuth();
@@ -58,7 +51,6 @@ export default function Landing() {
             <div className="hero-nav-links">
               <a href="#how" className="hide-sm">How it works</a>
               <a href="#modules" className="hide-sm">Features</a>
-              <Link to="/store/demo" className="hide-sm" style={{ color: 'rgba(255,255,255,.75)', textDecoration: 'none' }}>Demo store</Link>
               {user ? (
                 <>
                   <Link to="/dashboard" className="btn btn-light btn-sm">Dashboard</Link>
@@ -86,7 +78,6 @@ export default function Landing() {
               </p>
               <div className="hero-ctas fade-up d3" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <Link to={primary.to} className="btn btn-primary btn-lg">{primary.label} <IconArrow size={18} /></Link>
-                <Link to="/store/demo" className="btn btn-glass btn-lg">View live demo store</Link>
               </div>
               <div className="hero-stats fade-up d4">
                 <div><strong>3</strong><span>User roles</span></div>
@@ -100,17 +91,6 @@ export default function Landing() {
               <Suspense fallback={null}>
                 <Hero3D />
               </Suspense>
-              <div className="hero-float" style={{ top: '12%', right: '2%' }}>
-                <div style={{ fontWeight: 800, fontSize: 18 }}>₹1,24,580</div>
-                <div style={{ color: 'rgba(255,255,255,.65)', fontSize: 12 }}>Revenue this month · <span style={{ color: '#4ade80' }}>+32%</span></div>
-              </div>
-              <div className="hero-float" style={{ bottom: '10%', left: '0%', animationDelay: '1.5s' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#22d3ee,#6366f1)', display: 'grid', placeItems: 'center' }}><IconCart size={18} /></span>
-                <div>
-                  <div style={{ fontWeight: 700 }}>New order #A9F3</div>
-                  <div style={{ color: 'rgba(255,255,255,.65)', fontSize: 12 }}>Velocity Red Runner · just now</div>
-                </div>
-              </div></div>
             </div>
           </div>
         </div>
@@ -139,36 +119,6 @@ export default function Landing() {
                 <h3>{title}</h3>
                 <p>{text}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- SHOWCASE ---------- */}
-      <section className="section showcase">
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' }}>
-            <div>
-              <span className="eyebrow">Templates</span>
-              <h2 className="section-title">Same engine, totally different stores</h2>
-              <p className="section-sub">Every store is rendered from its own saved theme — colors, logo, banners and layout.</p>
-            </div>
-            <Link to="/store/demo" className="btn btn-dark">Open demo store <IconArrow size={16} /></Link>
-          </div>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', marginTop: 44 }}>
-            {SHOWCASE.map((s) => (
-              <Link key={s.name} to={s.to} className="mini-store lift" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div className="mini-store-bar"><i /><i /><i /></div>
-                <div className="mini-store-hero" style={{ backgroundImage: `linear-gradient(180deg, transparent 20%, ${s.color}ee), url(${img(s.hero, 700)})` }}>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.85 }}>{s.tag}</div>
-                  </div>
-                </div>
-                <div className="mini-store-grid">
-                  {s.items.map((p) => <div key={p} style={{ backgroundImage: `url(${img(p, 300)})` }} />)}
-                </div>
-              </Link>
             ))}
           </div>
         </div>
@@ -243,7 +193,6 @@ export default function Landing() {
             <p style={{ fontSize: 17, opacity: 0.88, maxWidth: 520, margin: '16px 0 30px' }}>Sign up, customize, publish. It really is that quick.</p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Link to={primary.to} className="btn btn-light btn-lg">{primary.label} <IconArrow size={18} /></Link>
-              <Link to="/login" className="btn btn-glass btn-lg">Try the demo account</Link>
             </div>
           </div>
         </div>
@@ -262,7 +211,6 @@ export default function Landing() {
                 <strong style={{ color: '#fff' }}>Product</strong>
                 <a href="#how">How it works</a>
                 <a href="#modules">Features</a>
-                <Link to="/store/demo">Demo store</Link>
               </div>
               <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
                 <strong style={{ color: '#fff' }}>Account</strong>

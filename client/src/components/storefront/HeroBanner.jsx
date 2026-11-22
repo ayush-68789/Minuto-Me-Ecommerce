@@ -1,4 +1,4 @@
-// Owner: Member 4 -- hero in 6 layouts: image | split | centered | gradient | slider | 3d
+// Owner: M3 -- hero in 6 layouts: image | split | centered | gradient | slider | 3d
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import formatCurrency from '../../utils/formatCurrency';
 import { resolveTheme } from '../../theme/themeConfig';

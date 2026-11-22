@@ -1,117 +1,130 @@
-// Owner: M2 - Products & Dashboard (Cloudinary storage: Member 5 - Onboarding & Studio)
 import path from 'path';
-import fs from 'fs';
-import { isCloudinaryEnabled, uploadBuffer } from '../config/cloudinary.js';
+import crypto from 'crypto';
+import multer from 'multer';
 
-// Resolve uploads directory (used when Cloudinary is not configured)
-const uploadDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  try {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  } catch {
-    // Ignore error if directory already exists
-  }
+// 5MB maximum file size
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+// Magic number signatures for binary content validation
+function validateMagicNumbers(buffer) {
+  return Boolean(detectImageMime(buffer));
 }
 
-const ALLOWED = /jpeg|jpg|png|webp|gif|svg/;
-const MAX_SIZE = 5 * 1024 * 1024; // 5 MB max
+function detectImageMime(buffer) {
+  if (!buffer || buffer.length < 4) return false;
 
-/**
- * Persist one in-memory file: Cloudinary when configured, local /uploads otherwise.
- * Resolves to the public URL stored on the document.
- */
-export const storeFile = async (file, folder = 'misc') => {
-  if (isCloudinaryEnabled()) {
-    const { url } = await uploadBuffer(file.buffer, { folder: `minuto-me/${folder}` });
-    return url;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+
+  // GIF: 47 49 46 38
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) return 'image/gif';
+
+  // WEBP: 52 49 46 46 ... 57 45 42 50
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return 'image/webp';
   }
+
+  return null;
+}
+
+const storage = multer.memoryStorage();
+
+const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-  const filename = `${file.fieldname}-${uniqueSuffix}${ext}`;
-  await fs.promises.writeFile(path.join(uploadDir, filename), file.buffer);
-  return `/uploads/${filename}`;
+  const mime = file.mimetype.toLowerCase();
+
+  if (!ALLOWED_MIME_TYPES.has(mime) || !ALLOWED_EXTENSIONS.has(ext)) {
+    const err = new Error('Unsupported image format. Allowed formats: JPG, PNG, WEBP, GIF.');
+    err.status = 400;
+    return cb(err, false);
+  }
+
+  cb(null, true);
 };
 
-const folderFor = (req) => (req.baseUrl?.includes('product') ? 'products' : 'stores');
+const rawUpload = multer({
+  storage,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 1,
+  },
+  fileFilter,
+});
 
-// Multer integration with graceful fallback
-let multerMiddleware;
-try {
-  const multerModule = await import('multer');
-  const multer = multerModule.default || multerModule;
+/**
+ * Middleware wrapper that catches Multer errors and validates binary content.
+ */
+export const uploadImageMiddleware = (fieldName = 'image') => {
+  const uploadSingle = rawUpload.single(fieldName);
 
-  const fileFilter = (_req, file, cb) => {
-    const ext = ALLOWED.test(path.extname(file.originalname).toLowerCase());
-    const mime = ALLOWED.test(file.mimetype);
-    if (ext && mime) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files (jpeg, jpg, png, webp, gif, svg) are allowed'));
-    }
-  };
-
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    fileFilter,
-    limits: { fileSize: MAX_SIZE },
-  });
-
-  // Run a multer handler, then persist every received file and expose its URL on req.body
-  const run = (handler, collect) => (req, res, next) => {
-    handler(req, res, async (err) => {
+  return (req, res, next) => {
+    uploadSingle(req, res, (err) => {
       if (err) {
-        const message = err.code === 'LIMIT_FILE_SIZE' ? 'Images must be 5 MB or smaller' : err.message;
-        return res.status(400).json({ message, success: false });
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: `File size exceeds the 5MB limit`,
+          });
+        }
+        return res.status(err.status || 400).json({
+          success: false,
+          message: err.message || 'File upload error',
+        });
       }
-      try {
-        await collect(req);
-        return next();
-      } catch (storeErr) {
-        return res.status(502).json({ message: `Image upload failed: ${storeErr.message}`, success: false });
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No image file provided',
+        });
       }
+
+      if (req.file.size === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'The uploaded file is empty',
+        });
+      }
+
+      // Validate binary magic numbers
+      if (!validateMagicNumbers(req.file.buffer)) {
+        return res.status(400).json({
+          success: false,
+          message: 'File content does not match a valid image signature',
+        });
+      }
+
+      if (detectImageMime(req.file.buffer) !== req.file.mimetype.toLowerCase()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image content does not match the declared file type',
+        });
+      }
+
+      // Generate secure unique filename
+      const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
+      req.file.safeFilename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
+
+      next();
     });
   };
+};
 
-  multerMiddleware = {
-    single: (fieldName) =>
-      run(upload.single(fieldName), async (req) => {
-        if (req.file) {
-          req.body[fieldName] = await storeFile(req.file, folderFor(req));
-        }
-      }),
-    array: (fieldName, maxCount = 5) =>
-      run(upload.array(fieldName, maxCount), async (req) => {
-        if (req.files?.length) {
-          req.body[fieldName] = await Promise.all(req.files.map((f) => storeFile(f, folderFor(req))));
-        }
-      }),
-    // fields: [{ name: 'logo', maxCount: 1 }, { name: 'banners', maxCount: 5 }]
-    fields: (fields) =>
-      run(upload.fields(fields), async (req) => {
-        for (const { name, maxCount = 1 } of fields) {
-          const files = req.files?.[name];
-          if (!files?.length) continue;
-          const urls = await Promise.all(files.map((f) => storeFile(f, folderFor(req))));
-          req.body[name] = maxCount === 1 ? urls[0] : urls;
-        }
-      }),
-  };
-} catch {
-  // Graceful fallback when multer is not available: image URLs must already be in the JSON body
-  multerMiddleware = {
-    single: () => (_req, _res, next) => next(),
-    array: (fieldName) => (req, _res, next) => {
-      if (req.body?.[fieldName] && !Array.isArray(req.body[fieldName])) {
-        req.body[fieldName] = [req.body[fieldName]];
-      }
-      next();
-    },
-    fields: () => (_req, _res, next) => next(),
-  };
-}
-
-export const uploadSingle = (field) => multerMiddleware.single(field);
-export const uploadArray = (field, maxCount) => multerMiddleware.array(field, maxCount);
-export const uploadFields = (fields) => multerMiddleware.fields(fields);
-
-export default multerMiddleware;
+export { validateMagicNumbers, detectImageMime, ALLOWED_MIME_TYPES, ALLOWED_EXTENSIONS };
+export default uploadImageMiddleware;
