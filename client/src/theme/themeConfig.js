@@ -46,7 +46,7 @@ export const OPTIONS = {
 export const SECTIONS = {
   hero: { label: 'Hero banner', icon: '🖼️', text: 'Headline, banner image and main button' },
   marquee: { label: 'Scrolling ticker', icon: '📣', text: 'Moving strip of short messages' },
-  perks: { label: 'Store perks', icon: '🚚', text: 'Delivery, secure checkout, payments' },
+  perks: { label: 'Store perks', icon: '🚚', text: 'Fast delivery, order tracking, trusted quality' },
   categories: { label: 'Shop by category', icon: '🗂️', text: 'Tiles built from your product categories' },
   featured: { label: 'Trending carousel', icon: '🔥', text: 'Swipeable row of your best deals' },
   products: { label: 'All products', icon: '🛍️', text: 'Search, filters and product grid (always on)', locked: true },
@@ -113,11 +113,7 @@ export function defaultContent(store = {}) {
     aboutTitle: `The story of ${name}`,
     aboutText: store.description || `${name} started with a simple idea: great products should be easy to find and a joy to own. Every item is picked by hand, checked for quality and shipped with care.`,
     newsletterTitle: 'Get 10% off your first order',
-    testimonials: [
-      { name: 'Riya S.', text: 'Absolutely love what I ordered — great quality and it arrived a day early!', rating: 5 },
-      { name: 'Arjun M.', text: 'Smooth checkout and lovely packaging. Already planning my next order.', rating: 5 },
-      { name: 'Sneha G.', text: 'Customer support was super helpful. Highly recommend this store.', rating: 4 },
-    ],
+    testimonials: [],
     _fallbackTitle: title,
     _fallbackSub: sub,
   };
@@ -147,7 +143,6 @@ export function resolveTheme(store = {}) {
   const c = store.theme?.content || {};
   t.content = { ...defaults };
   for (const [k, v] of Object.entries(c)) if (v !== undefined && v !== null && (typeof v !== 'string' || v.trim() !== '' || k === 'heroTitle' || k === 'heroSubtitle')) t.content[k] = v;
-  if (!Array.isArray(t.content.testimonials) || !t.content.testimonials.length) t.content.testimonials = defaults.testimonials;
   t.template = TEMPLATES.some((x) => x.id === store.template) ? store.template : 'modern';
   return t;
 }
