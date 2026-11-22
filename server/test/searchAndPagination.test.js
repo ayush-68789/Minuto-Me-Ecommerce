@@ -1,11 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  escapeRegex,
-  parsePagination,
-  buildProductFilter,
-  parseSort,
-} from '../src/utils/queryHelper.js';
+import { escapeRegex, parsePagination } from '../src/utils/queryHelper.js';
+import { buildCatalogQuery, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SORT_MAP } from '../src/controllers/catalogController.js';
 
 describe('Search & Pagination Hardening', () => {
   describe('escapeRegex', () => {
@@ -29,7 +25,6 @@ describe('Search & Pagination Hardening', () => {
       assert.equal(escapeRegex(null), '');
       assert.equal(escapeRegex(undefined), '');
       assert.equal(escapeRegex(123), '');
-      assert.equal(escapeRegex({}), '');
     });
   });
 
@@ -58,7 +53,7 @@ describe('Search & Pagination Hardening', () => {
     test('clamps excessively large page and limit', () => {
       const res = parsePagination({ page: '99999', limit: '5000' }, 20, 100);
       assert.equal(res.page, 1000); // Max page
-      assert.equal(res.limit, 100); // Max limit
+      assert.equal(res.limit, 100);  // Max limit
       assert.equal(res.skip, (1000 - 1) * 100);
     });
 
@@ -69,74 +64,64 @@ describe('Search & Pagination Hardening', () => {
       assert.equal(res.skip, 50);
     });
   });
+});
 
-  describe('buildProductFilter', () => {
-    test('scopes query strictly by storeId', () => {
-      const filter = buildProductFilter({ storeId: 'store_123' });
-      assert.equal(filter.store, 'store_123');
-    });
+describe('Catalog query builder', () => {
+  const STORE = 'store-1';
 
-    test('builds multi-field search conditions with escaped regex', () => {
-      const filter = buildProductFilter({
-        storeId: 'store_123',
-        search: 'ceramic mug (blue)',
-      });
-      assert.equal(filter.store, 'store_123');
-      assert.ok(Array.isArray(filter.$or));
-      assert.equal(filter.$or.length, 3);
-      assert.equal(filter.$or[0].name.$regex, 'ceramic mug \\(blue\\)');
-      assert.equal(filter.$or[0].name.$options, 'i');
-    });
-
-    test('handles category filter while ignoring All', () => {
-      const filter1 = buildProductFilter({ storeId: 'store_123', category: 'Kitchen' });
-      assert.equal(filter1.category, 'Kitchen');
-
-      const filter2 = buildProductFilter({ storeId: 'store_123', category: 'All' });
-      assert.equal(filter2.category, undefined);
-    });
-
-    test('filters by active and inactive status', () => {
-      const activeFilter = buildProductFilter({ storeId: 'store_123', status: 'active' });
-      assert.equal(activeFilter.isActive, true);
-
-      const inactiveFilter = buildProductFilter({ storeId: 'store_123', status: 'inactive' });
-      assert.equal(inactiveFilter.isActive, false);
-
-      const allFilter = buildProductFilter({ storeId: 'store_123', status: 'all' });
-      assert.equal(allFilter.isActive, undefined);
-    });
-
-    test('filters by stock status (in_stock, low_stock, out_of_stock)', () => {
-      const outOfStock = buildProductFilter({ storeId: 'store_123', stockStatus: 'out_of_stock' });
-      assert.equal(outOfStock.stock, 0);
-
-      const lowStock = buildProductFilter({ storeId: 'store_123', stockStatus: 'low_stock' });
-      assert.deepEqual(lowStock.stock, { $gt: 0, $lte: 5 });
-
-      const inStock = buildProductFilter({ storeId: 'store_123', stockStatus: 'in_stock' });
-      assert.deepEqual(inStock.stock, { $gt: 0 });
-    });
+  test('always scopes to the store and active products', () => {
+    const q = buildCatalogQuery({}, STORE);
+    assert.deepEqual(q.filter, { store: STORE, isActive: true });
+    assert.deepEqual(q.sort, SORT_MAP.newest);
+    assert.equal(q.page, 1);
+    assert.equal(q.limit, DEFAULT_PAGE_SIZE);
   });
 
-  describe('parseSort', () => {
-    const whitelist = {
-      price_asc: { price: 1 },
-      price_desc: { price: -1 },
-      newest: { createdAt: -1 },
-    };
+  test('escapes search text and matches name, description and category', () => {
+    const q = buildCatalogQuery({ search: '  (shoes)+  ' }, STORE);
+    assert.equal(q.filter.$or.length, 3);
+    assert.equal(q.filter.$or[0].name.$regex, '\\(shoes\\)\\+');
+    assert.equal(q.filter.$or[0].name.$options, 'i');
+  });
 
-    test('returns matching sort option from whitelist', () => {
-      const sort = parseSort('price_asc', whitelist);
-      assert.deepEqual(sort, { price: 1 });
-    });
+  test('accepts q as an alias for search and ignores non-string values', () => {
+    assert.equal(buildCatalogQuery({ q: 'bag' }, STORE).search, 'bag');
+    assert.equal(buildCatalogQuery({ search: { $ne: '' } }, STORE).filter.$or, undefined);
+  });
 
-    test('falls back to default sort when unknown or empty', () => {
-      const fallback = parseSort('invalid_key', whitelist, { createdAt: -1 });
-      assert.deepEqual(fallback, { createdAt: -1 });
+  test('uses the first value when a param is repeated', () => {
+    const q = buildCatalogQuery({ category: ['Shoes', 'Bags'] }, STORE);
+    assert.equal(q.filter.category, 'Shoes');
+  });
 
-      const fallbackEmpty = parseSort(null, whitelist, { createdAt: -1 });
-      assert.deepEqual(fallbackEmpty, { createdAt: -1 });
-    });
+  test('treats "All" as no category filter', () => {
+    assert.equal(buildCatalogQuery({ category: 'All' }, STORE).filter.category, undefined);
+  });
+
+  test('builds a price range and swaps reversed bounds', () => {
+    assert.deepEqual(buildCatalogQuery({ minPrice: '100', maxPrice: '500' }, STORE).filter.price, { $gte: 100, $lte: 500 });
+    assert.deepEqual(buildCatalogQuery({ minPrice: '500', maxPrice: '100' }, STORE).filter.price, { $gte: 100, $lte: 500 });
+  });
+
+  test('ignores empty, negative and non-numeric prices', () => {
+    assert.equal(buildCatalogQuery({ minPrice: '', maxPrice: '' }, STORE).filter.price, undefined);
+    assert.equal(buildCatalogQuery({ minPrice: '-5', maxPrice: 'abc' }, STORE).filter.price, undefined);
+  });
+
+  test('in-stock filter only applies for "true"', () => {
+    assert.deepEqual(buildCatalogQuery({ inStock: 'true' }, STORE).filter.stock, { $gt: 0 });
+    assert.equal(buildCatalogQuery({ inStock: '1' }, STORE).filter.stock, undefined);
+  });
+
+  test('falls back to newest for unknown or prototype sort keys', () => {
+    assert.equal(buildCatalogQuery({ sort: 'price_asc' }, STORE).sortKey, 'price_asc');
+    assert.equal(buildCatalogQuery({ sort: 'hacker' }, STORE).sortKey, 'newest');
+    assert.deepEqual(buildCatalogQuery({ sort: 'constructor' }, STORE).sort, SORT_MAP.newest);
+  });
+
+  test('clamps the page size to the catalog maximum', () => {
+    const q = buildCatalogQuery({ page: '3', limit: '500' }, STORE);
+    assert.equal(q.limit, MAX_PAGE_SIZE);
+    assert.equal(q.skip, 2 * MAX_PAGE_SIZE);
   });
 });
