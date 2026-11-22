@@ -28,7 +28,9 @@ const createOrderSchema = cartSchema.extend({
     postalCode: z.string().trim().regex(/^[A-Za-z\d\s-]{3,10}$/, 'Invalid postal code'),
     country: z.string().trim().min(2).max(60).optional().default('India'),
   }),
-  paymentMethod: z.enum(['cod', 'online']).default('cod'),
+  quoteHash: z.string({ required_error: 'Quote hash is required' }).trim().min(1, 'Quote hash is required'),
+  paymentMethod: z.enum(['cod', 'online']).optional().default('cod'),
+  idempotencyKey: z.string({ required_error: 'Idempotency key is required' }).trim().min(8, 'Idempotency key is required').max(128),
 });
 
 const updateStatusSchema = z.object({

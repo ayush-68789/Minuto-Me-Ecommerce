@@ -1,5 +1,6 @@
 // Owner: M5
 // The cart itself lives in the browser; the server re-prices it from the DB.
+import crypto from 'crypto';
 import Product from '../models/Product.js';
 import Store from '../models/Store.js';
 import calcTotals from '../utils/calcTotals.js';
@@ -52,7 +53,6 @@ const storeSummary = (store) => ({
   name: store.businessName,
   slug: store.slug,
   currency: store.currency,
-  paymentsEnabled: store.features.payments,
 });
 
 // POST /api/orders/quote
@@ -61,7 +61,15 @@ const quoteCart = async (req, res, next) => {
     const { storeSlug, items } = parse(cartSchema, req.body);
     const store = await findActiveStore(storeSlug);
     const { lines, issues, subtotal, shippingFee, total } = await priceCart(store, items);
-    res.json({ store: storeSummary(store), items: lines, issues, subtotal, shippingFee, total });
+
+    const quoteData = JSON.stringify({
+      storeId: store._id.toString(),
+      items: lines.map((l) => ({ p: l.product.toString(), price: l.price, qty: l.quantity })),
+      total,
+    });
+    const quoteHash = crypto.createHash('sha256').update(quoteData).digest('hex').slice(0, 32);
+
+    res.json({ store: storeSummary(store), items: lines, issues, subtotal, shippingFee, total, quoteHash });
   } catch (err) {
     next(err);
   }

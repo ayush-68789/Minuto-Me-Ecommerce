@@ -2,6 +2,7 @@
 import express from 'express';
 import Store from '../models/Store.js';
 import Product from '../models/Product.js';
+import Review from '../models/Review.js';
 import { isEmail } from '../validators/storeValidator.js';
 
 const router = express.Router();
@@ -13,6 +14,16 @@ router.get('/:slug', async (req, res, next) => {
     if (!store) return res.status(404).json({ message: 'Store not found' });
 
     const products = await Product.find({ store: store._id, isActive: true }).sort({ createdAt: -1 }).lean();
+    const ratingRows = products.length ? await Review.aggregate([
+      { $match: { product: { $in: products.map((product) => product._id) } } },
+      { $group: { _id: '$product', reviewCount: { $sum: 1 }, averageRating: { $avg: '$rating' } } },
+    ]) : [];
+    const ratings = new Map(ratingRows.map((row) => [row._id.toString(), row]));
+    for (const product of products) {
+      const rating = ratings.get(product._id.toString());
+      product.reviewCount = rating?.reviewCount || 0;
+      product.averageRating = rating?.averageRating || 0;
+    }
     const { owner, ...publicStore } = store;
     return res.json({ store: publicStore, products });
   } catch (err) {

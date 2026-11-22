@@ -58,7 +58,7 @@ export function Perks({ store }) {
       <div className="container">
         <div className="sf-perk"><span className="sf-perk-icon"><IconTruck size={19} /></span><div><strong>Free delivery</strong>On every order</div></div>
         <div className="sf-perk"><span className="sf-perk-icon"><IconShield size={19} /></span><div><strong>Secure checkout</strong>Your data stays safe</div></div>
-        <div className="sf-perk"><span className="sf-perk-icon"><IconCard size={19} /></span><div><strong>{store.features?.payments ? 'Pay online or COD' : 'Cash on delivery'}</strong>Flexible payments</div></div>
+        <div className="sf-perk"><span className="sf-perk-icon"><IconCard size={19} /></span><div><strong>Cash on delivery</strong>Pay when your order arrives</div></div>
         <div className="sf-perk"><span className="sf-perk-icon"><IconCheck size={19} /></span><div><strong>Easy returns</strong>7-day hassle-free</div></div>
       </div>
     </div>
@@ -223,7 +223,7 @@ function Testimonials({ t }) {
           <figure key={i} className="sf-quote">
             <div className="sf-stars">{[1, 2, 3, 4, 5].map((n) => <IconStar key={n} size={15} fill={n <= q.rating ? 'currentColor' : 'none'} />)}</div>
             <blockquote>“{q.text}”</blockquote>
-            <figcaption><i>{(q.name || '?').charAt(0)}</i>{q.name}<small>Verified buyer</small></figcaption>
+            <figcaption><i>{(q.name || '?').charAt(0)}</i>{q.name}</figcaption>
           </figure>
         ))}
       </div>
