@@ -12,7 +12,6 @@
 .hero-pill { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); }
 .hero-pill b { background: var(--grad); color: #fff; padding: 3px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .04em; }
 .hero-canvas { position: relative; height: min(640px, 78vh); }
-.hero-float { position: absolute; z-index: 3; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(14px); font-size: 13px; animation: floaty 6s ease-in-out infinite; box-shadow: 0 20px 40px -20px rgba(0,0,0,.6); }
 .hero-stats { display: flex; gap: 36px; margin-top: 46px; flex-wrap: wrap; }
 .hero-stats strong { display: block; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
 .hero-stats span { font-size: 13px; color: rgba(255,255,255,.6); }
@@ -29,13 +28,6 @@
 .module { padding: 26px; }
 .module-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 18px; }
 
-.showcase { background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); }
-.mini-store { overflow: hidden; border-radius: 20px; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); }
-.mini-store-bar { display: flex; gap: 6px; padding: 10px 12px; background: #f1f5f9; border-bottom: 1px solid var(--line); }
-.mini-store-bar i { width: 9px; height: 9px; border-radius: 50%; background: #cbd5e1; display: block; }
-.mini-store-hero { height: 150px; position: relative; display: flex; align-items: flex-end; padding: 16px; color: #fff; background-size: cover; background-position: center; }
-.mini-store-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; }
-.mini-store-grid div { aspect-ratio: 1; border-radius: 10px; background-size: cover; background-position: center; }
 
 .roles { background: #0b0a1f; color: #fff; position: relative; overflow: hidden; }
 .roles::before { content: ''; position: absolute; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(124,58,237,.35), transparent 65%); top: -300px; right: -200px; }
@@ -57,6 +49,5 @@
   .hero-ctas, .hero-stats { justify-content: center; }
   .hero-canvas { height: 380px; order: -1; margin-top: -10px; }
   .hero-nav-links .hide-sm { display: none; }
-  .hero-float { display: none; }
 }
 @media (max-width: 520px) { .hero-nav-links { gap: 14px; } }

@@ -1,205 +1,56 @@
-// Owner: M2 - Products & Dashboard
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import DashboardLayout from '../components/dashboard/DashboardLayout';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import Logo from '../components/common/Logo';
 import useAuth from '../hooks/useAuth';
-import { validateProfile } from '../utils/validators';
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount, updateCustomerProfile } = useAuth();
   const navigate = useNavigate();
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    currentPassword: '',
-    newPassword: '',
-  });
-
-  const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
-  const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
-    }
+  const save = async (event) => {
+    event.preventDefault(); setBusy(true); setError(''); setMessage('');
+    try { await updateCustomerProfile({ name, email }); setMessage('Profile updated.'); }
+    catch (err) { setError(err.response?.data?.message || 'Could not update profile'); }
+    finally { setBusy(false); }
   };
 
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    const { isValid, errors: validationErrors } = validateProfile(formData);
-    if (!isValid) {
-      setErrors(validationErrors);
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setStatusMessage({ text: 'Profile updated successfully!', type: 'success' });
-    } catch (err) {
-      setStatusMessage({ text: err.message || 'Failed to update profile', type: 'error' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch {
-      navigate('/login');
-    }
+  const remove = async () => {
+    const warning = user?.role === 'client'
+      ? 'Delete your account and all stores, products, reviews, and order history? This cannot be undone.'
+      : 'Permanently delete your account? This cannot be undone.';
+    if (!window.confirm(warning)) return;
+    setBusy(true); setError('');
+    try { await deleteAccount(); navigate('/', { replace: true }); }
+    catch (err) { setError(err.response?.data?.message || 'Could not delete account'); setBusy(false); }
   };
 
   return (
-    <DashboardLayout>
-      <div style={{ maxWidth: 640 }}>
-        <div style={{ marginBottom: 28 }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 800 }}>Account Profile</h2>
-          <p style={{ margin: 0, color: 'var(--dash-muted)', fontSize: 14 }}>
-            Manage your personal merchant account details and authentication credentials.
-          </p>
-        </div>
-
-        {statusMessage.text && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: 8,
-              marginBottom: 20,
-              background: statusMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: statusMessage.type === 'success' ? '#15803d' : '#b91c1c',
-              fontWeight: 600,
-              fontSize: 14,
-            }}
-          >
-            {statusMessage.text}
+    <main style={{ minHeight: '100vh', padding: '28px 20px', background: '#f8fafc' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        <Logo />
+        <section style={{ marginTop: 40, padding: 28, borderRadius: 20, background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 12px 32px rgba(15,23,42,.06)' }}>
+          <h1 style={{ margin: '0 0 8px', fontSize: 28 }}>Your profile</h1>
+          <p style={{ margin: '0 0 24px', color: '#64748b' }}>Account details for Minuto Me.</p>
+          <form onSubmit={save} style={{ display: 'grid', gap: 14 }}>
+            <label>Name<input className="input" required minLength={2} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <label>Email<input className="input" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <p style={{ margin: 0, color: '#64748b' }}>Account type: {user?.role === 'admin' ? 'Administrator' : user?.role === 'customer' ? 'Customer' : 'Store owner'}</p>
+            {message && <p role="status" style={{ color: '#15803d', margin: 0 }}>{message}</p>}
+            {error && <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>{error}</p>}
+            <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save profile'}</button>
+          </form>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 28 }}>
+            <Link to={user?.store ? '/dashboard' : '/create-store'} className="btn btn-primary">{user?.store ? 'Manage stores' : 'Create a store'}</Link>
+            <button className="btn btn-ghost" type="button" onClick={async () => { await logout(); navigate('/login'); }}>Log out</button>
+            {user?.role === 'client' && <button className="btn btn-ghost" type="button" disabled={busy} onClick={remove} style={{ color: '#b91c1c' }}>Delete account</button>}
           </div>
-        )}
-
-        <form
-          onSubmit={handleUpdateProfile}
-          style={{
-            background: 'var(--dash-card)',
-            border: '1px solid var(--dash-border)',
-            borderRadius: 12,
-            padding: 28,
-            marginBottom: 24,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: 'var(--dash-primary)',
-                color: '#fff',
-                fontSize: 24,
-                fontWeight: 800,
-                display: 'grid',
-                placeItems: 'center',
-              }}
-            >
-              {(user?.name || 'M').charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{user?.name || 'Store Merchant'}</h3>
-              <p style={{ margin: '4px 0 0', color: 'var(--dash-muted)', fontSize: 14 }}>
-                Role: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{user?.role || 'Client'}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Full Name</label>
-            <input
-              type="text"
-              name="name"
-              className="form-input"
-              value={formData.name}
-              onChange={handleChange}
-              required
-            />
-            {errors.name && <div className="form-error">{errors.name}</div>}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <input
-              type="email"
-              name="email"
-              className="form-input"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
-            {errors.email && <div className="form-error">{errors.email}</div>}
-          </div>
-
-          <hr style={{ border: 'none', borderTop: '1px solid var(--dash-border)', margin: '24px 0' }} />
-
-          <h4 style={{ margin: '0 0 16px', fontSize: 15 }}>Change Password (Optional)</h4>
-
-          <div className="form-group">
-            <label className="form-label">Current Password</label>
-            <input
-              type="password"
-              name="currentPassword"
-              className="form-input"
-              placeholder="••••••••"
-              value={formData.currentPassword}
-              onChange={handleChange}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">New Password</label>
-            <input
-              type="password"
-              name="newPassword"
-              className="form-input"
-              placeholder="At least 8 characters"
-              value={formData.newPassword}
-              onChange={handleChange}
-            />
-            {errors.newPassword && <div className="form-error">{errors.newPassword}</div>}
-          </div>
-
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-
-        {/* Danger zone / sign out */}
-        <div
-          style={{
-            background: 'var(--dash-card)',
-            border: '1px solid var(--dash-border)',
-            borderRadius: 12,
-            padding: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <h4 style={{ margin: 0, fontSize: 15 }}>Sign out of account</h4>
-            <p style={{ margin: '4px 0 0', color: 'var(--dash-muted)', fontSize: 13 }}>
-              Clear current session and secure your store portal.
-            </p>
-          </div>
-          <button type="button" className="btn-secondary" onClick={handleLogout}>
-            Log out
-          </button>
-        </div>
+        </section>
       </div>
-    </DashboardLayout>
+    </main>
   );
 }

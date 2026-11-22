@@ -1,4 +1,4 @@
-// Owner: Member 4
+// Owner: M3
 import { Link } from 'react-router-dom';
 import { StoreLogo } from './Navbar';
 import { IconFacebook, IconInstagram, IconTwitter, IconWhatsapp, IconYoutube } from '../common/Icons';

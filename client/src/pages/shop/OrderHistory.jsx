@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 // Logged-in customers see their account's orders; guests see orders placed from this device.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -18,10 +18,10 @@ export default function OrderHistory() {
     let cancelled = false;
 
     const loadGuestOrders = async () => {
-      const results = await Promise.allSettled(guestOrders.map((o) => trackOrder(o.id, o.email)));
+      const results = await Promise.allSettled(guestOrders.map((o) => trackOrder(o.id)));
       return results
         .filter((r) => r.status === 'fulfilled')
-        .map((r) => ({ ...r.value.order, currency: r.value.store.currency, email: r.value.order.customerInfo.email }));
+        .map((r) => ({ ...r.value.order, currency: r.value.store.currency }));
     };
 
     fetchMyOrders(slug)
@@ -31,7 +31,7 @@ export default function OrderHistory() {
         setOrders(mine.map((o) => ({ ...o, currency: o.store?.currency })));
       })
       .catch(async (err) => {
-        if (err.status !== 401) {
+        if (err.status !== 401 && err.status !== 403) {
           if (!cancelled) setError(err);
           return;
         }
@@ -54,7 +54,7 @@ export default function OrderHistory() {
       <h1>My orders</h1>
       {isGuest && (
         <p style={{ color: 'var(--s-muted, #6b7280)' }}>
-          Showing orders placed on this device. <Link to="/login">Log in</Link> to see all your orders.
+          Showing orders placed on this device. <Link to={`/store/${slug}/login`}>Sign in with a customer account</Link> to see this store’s orders.
         </p>
       )}
       {error && <p style={{ color: '#dc2626' }}>{error.message}</p>}
@@ -66,9 +66,7 @@ export default function OrderHistory() {
             key={order._id}
             order={order}
             currency={order.currency}
-            to={`/store/${slug}/orders/${order._id}${
-              order.email ? `?email=${encodeURIComponent(order.email)}` : ''
-            }`}
+            to={`/store/${slug}/orders/${order._id}`}
           />
         ))}
       </div>

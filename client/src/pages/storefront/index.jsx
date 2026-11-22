@@ -1,4 +1,4 @@
-// Owner: Member 4 — Storefront container with theme and routed pages
+// Owner: M3 -- every store is this one template + the store's saved config
 import { Link, Route, Routes, useParams } from 'react-router-dom';
 import { StoreProvider, useStore } from '../../context/StoreContext';
 import useAuth from '../../hooks/useAuth';
@@ -10,6 +10,12 @@ import Loader from '../../components/common/Loader';
 import Home from './Home';
 import ProductDetails from './ProductDetails';
 import Shop from '../shop';
+import CustomerLogin from '../auth/CustomerLogin';
+import CustomerRegister from '../auth/CustomerRegister';
+import CustomerAccount from '../auth/CustomerAccount';
+import CustomerLogout from '../auth/CustomerLogout';
+import CustomerDeleteAccount from '../auth/CustomerDeleteAccount';
+import CustomerProfile from '../auth/CustomerProfile';
 import '../../components/storefront/storefront.css';
 
 function StoreShell() {
@@ -30,7 +36,6 @@ function StoreShell() {
           <h1 style={{ margin: '12px 0 8px', letterSpacing: '-.02em' }}>{error === 'not_found' ? 'Store not found' : 'Something went wrong'}</h1>
           <p className="muted" style={{ marginTop: 0 }}>{error === 'not_found' ? 'This store doesn’t exist or isn’t published yet.' : error}</p>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 20, flexWrap: 'wrap' }}>
-            <Link to="/store/demo" className="btn btn-primary">Visit the demo store</Link>
             <Link to="/" className="btn btn-ghost">Back to Minuto Me</Link>
           </div>
         </div>
@@ -55,6 +60,12 @@ function StoreShell() {
         <Routes>
           <Route index element={<Home />} />
           <Route path="product/:productId" element={<ProductDetails />} />
+          <Route path="login" element={<CustomerLogin />} />
+          <Route path="register" element={<CustomerRegister />} />
+          <Route path="account" element={<CustomerAccount />} />
+          <Route path="account/profile" element={<CustomerProfile />} />
+          <Route path="logout" element={<CustomerLogout />} />
+          <Route path="delete-account" element={<CustomerDeleteAccount />} />
           <Route path="*" element={<div className="container" style={{ paddingTop: 32, paddingBottom: 64 }}><Shop /></div>} />
         </Routes>
       </main>
