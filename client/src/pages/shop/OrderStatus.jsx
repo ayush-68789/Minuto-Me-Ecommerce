@@ -1,8 +1,8 @@
-// Owner: M3
+// Owner: M5
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import useCart from '../../hooks/useCart';
-import { trackOrder } from '../../api/orderApi';
+import { simulatePayment, trackOrder } from '../../api/orderApi';
 import CartSummary from '../../components/cart/CartSummary';
 import { button, card, formatMoney, page, statusColors } from '../../components/cart/money';
 
@@ -19,6 +19,7 @@ export default function OrderStatus() {
   const [emailInput, setEmailInput] = useState('');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [paying, setPaying] = useState(false);
   const [lookup, setLookup] = useState(0);
 
   useEffect(() => {
@@ -26,6 +27,18 @@ export default function OrderStatus() {
     setError(null);
     trackOrder(orderId, email).then(setData).catch(setError);
   }, [orderId, email, lookup]);
+
+  const pay = async () => {
+    setPaying(true);
+    try {
+      const { order } = await simulatePayment(orderId, email);
+      setData((d) => ({ ...d, order }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPaying(false);
+    }
+  };
 
   if (!email || (error && !data)) {
     return (
@@ -63,6 +76,8 @@ export default function OrderStatus() {
   const { order, store } = data;
   const currency = store.currency;
   const currentStep = steps.indexOf(order.status);
+  const canPay =
+    order.payment.method === 'online' && order.status === 'pending' && order.payment.status !== 'paid';
   const a = order.shippingAddress;
 
   return (
@@ -133,9 +148,19 @@ export default function OrderStatus() {
             currency={currency}
           >
             <div style={{ fontSize: 14 }}>
-              Payment: Cash on delivery ·{' '}
+              Payment: {order.payment.method === 'cod' ? 'Cash on delivery' : 'Online'} ·{' '}
               <span style={{ textTransform: 'capitalize' }}>{order.payment.status}</span>
             </div>
+            {canPay && (
+              <button
+                type="button"
+                onClick={pay}
+                disabled={paying}
+                style={{ ...button(paying), width: '100%', marginTop: 12 }}
+              >
+                {paying ? 'Processing…' : 'Pay now (test mode)'}
+              </button>
+            )}
           </CartSummary>
         </div>
       </div>

@@ -1,4 +1,3 @@
-// Owner: Member 4 — Storefront 3D Scene
 // 3D product carousel for the storefront hero: the store's real product photos as glossy cards
 // orbiting a glowing pedestal, lit in the store's brand colors. Drag / swipe to spin.
 import { useEffect, useRef } from 'react';

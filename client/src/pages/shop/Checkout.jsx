@@ -1,4 +1,4 @@
-// Owner: M3
+// Owner: M5
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import useCart, { useCartQuote } from '../../hooks/useCart';
@@ -13,6 +13,7 @@ export default function Checkout() {
   const { quote, error: quoteError, loading } = useCartQuote(slug, items);
 
   const [details, setDetails] = useState(emptyAddress);
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
   const [placing, setPlacing] = useState(false);
@@ -31,7 +32,7 @@ export default function Checkout() {
     setPlacing(true);
     setSubmitError(null);
     try {
-      const { order } = await createOrder(slug, items, details);
+      const { order } = await createOrder(slug, items, { ...details, paymentMethod });
       const email = order.customerInfo.email;
       rememberOrder(order._id, email);
       clearCart();
@@ -55,7 +56,26 @@ export default function Checkout() {
 
           <section style={card}>
             <h2 style={{ fontSize: 18, marginTop: 0 }}>Payment</h2>
-            <p style={{ marginBottom: 0 }}>Cash on delivery</p>
+            <label style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                type="radio"
+                name="payment"
+                checked={paymentMethod === 'cod'}
+                onChange={() => setPaymentMethod('cod')}
+              />
+              Cash on delivery
+            </label>
+            {quote?.store.paymentsEnabled && (
+              <label style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="radio"
+                  name="payment"
+                  checked={paymentMethod === 'online'}
+                  onChange={() => setPaymentMethod('online')}
+                />
+                Pay online
+              </label>
+            )}
           </section>
         </div>
 

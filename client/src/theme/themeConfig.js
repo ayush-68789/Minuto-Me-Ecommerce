@@ -1,4 +1,4 @@
-// Owner: Member 4 — Single source of truth for storefront design options and themes.
+// Owner: M2/M3 -- single source of truth for every storefront design option.
 // The studio (onboarding + dashboard) edits these, the storefront renders them, the server stores them.
 
 const u = (id, w = 1800) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;

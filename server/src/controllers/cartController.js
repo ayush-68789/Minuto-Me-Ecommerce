@@ -1,68 +1,44 @@
-// The cart is kept in the browser; the server always reprices it from the database.
-import mongoose from 'mongoose';
+// Owner: M5
+// The cart itself lives in the browser; the server re-prices it from the DB.
+import Product from '../models/Product.js';
+import Store from '../models/Store.js';
 import calcTotals from '../utils/calcTotals.js';
 import { cartSchema, parse } from '../validators/orderValidator.js';
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
-function model(name) {
-  if (!mongoose.models[name]) throw httpError(503, `${name} service is not available yet`);
-  return mongoose.model(name);
-}
-
 async function findActiveStore(slug) {
-  const store = await model('Store').findOne({ slug: slug.toLowerCase(), status: 'active' });
+  const store = await Store.findOne({ slug: slug.toLowerCase(), status: 'active' });
   if (!store) throw httpError(404, 'Store not found');
   return store;
 }
 
+// Merges duplicate lines, loads products for THIS store only, and reports problems per line.
 async function priceCart(store, items) {
   const quantities = new Map();
   for (const { productId, quantity } of items) {
-    const combined = (quantities.get(productId) || 0) + quantity;
-    quantities.set(productId, combined);
+    quantities.set(productId, (quantities.get(productId) || 0) + quantity);
   }
 
-  const issues = [];
-  const validQuantities = new Map();
-  for (const [productId, quantity] of quantities) {
-    if (quantity > 99) {
-      issues.push({ productId, message: 'Maximum quantity per product is 99' });
-    } else {
-      validQuantities.set(productId, quantity);
-    }
-  }
+  const products = await Product.find({ _id: { $in: [...quantities.keys()] }, store: store._id });
+  const byId = new Map(products.map((p) => [p._id.toString(), p]));
 
-  const Product = model('Product');
-  const products = await Product.find({
-    _id: { $in: [...validQuantities.keys()] },
-    store: store._id,
-  });
-  const byId = new Map(products.map((product) => [product._id.toString(), product]));
   const lines = [];
-
-  for (const [productId, quantity] of validQuantities) {
+  const issues = [];
+  for (const [productId, quantity] of quantities) {
     const product = byId.get(productId);
     if (!product || !product.isActive) {
       issues.push({ productId, message: 'This product is no longer available' });
       continue;
     }
-    if (!Number.isInteger(product.stock) || product.stock < quantity) {
-      issues.push({
-        productId,
-        message: `Only ${Math.max(0, Number(product.stock) || 0)} left in stock`,
-        available: Math.max(0, Number(product.stock) || 0),
-      });
-      continue;
-    }
-    if (!Number.isFinite(product.price) || product.price < 0) {
-      issues.push({ productId, message: 'This product has an invalid price' });
+    if (product.stock < quantity) {
+      issues.push({ productId, message: `Only ${product.stock} left in stock`, available: product.stock });
       continue;
     }
     lines.push({
       product: product._id,
       name: product.name,
-      image: product.images?.[0] || '',
+      image: product.images[0] || '',
       price: product.price,
       quantity,
     });
@@ -76,17 +52,18 @@ const storeSummary = (store) => ({
   name: store.businessName,
   slug: store.slug,
   currency: store.currency,
-  paymentsEnabled: Boolean(store.features?.payments),
+  paymentsEnabled: store.features.payments,
 });
 
+// POST /api/orders/quote
 const quoteCart = async (req, res, next) => {
   try {
     const { storeSlug, items } = parse(cartSchema, req.body);
     const store = await findActiveStore(storeSlug);
     const { lines, issues, subtotal, shippingFee, total } = await priceCart(store, items);
     res.json({ store: storeSummary(store), items: lines, issues, subtotal, shippingFee, total });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 

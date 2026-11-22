@@ -1,4 +1,4 @@
-// Owner: Member 4 — Public storefront data and newsletter API
+// Owner: M3 -- public storefront data
 import api from './axiosInstance';
 
 export const fetchStorefront = (slug) => api.get(`/storefront/${encodeURIComponent(slug)}`).then((r) => r.data);

@@ -1,4 +1,4 @@
-// Owner: Member 4 -- every storefront section. The order + on/off comes from store.theme.sections,
+// Owner: M3 -- every storefront section. The order + on/off comes from store.theme.sections,
 // so the live store, the studio previews and the 3D "layers" view all render the exact same thing.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';

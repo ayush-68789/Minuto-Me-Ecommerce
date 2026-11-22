@@ -28,7 +28,7 @@ const createOrderSchema = cartSchema.extend({
     postalCode: z.string().trim().regex(/^[A-Za-z\d\s-]{3,10}$/, 'Invalid postal code'),
     country: z.string().trim().min(2).max(60).optional().default('India'),
   }),
-  paymentMethod: z.enum(['cod']).default('cod'),
+  paymentMethod: z.enum(['cod', 'online']).default('cod'),
 });
 
 const updateStatusSchema = z.object({
