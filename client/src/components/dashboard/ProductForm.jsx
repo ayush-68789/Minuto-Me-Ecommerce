@@ -102,8 +102,8 @@ export default function ProductForm({
     if (formData.comparePrice && Number(formData.comparePrice) < 0) {
       newErrors.comparePrice = 'Compare price cannot be negative';
     }
-    if (formData.stock === '' || isNaN(formData.stock) || Number(formData.stock) < 0 || !Number.isInteger(Number(formData.stock))) {
-      newErrors.stock = 'Valid whole number stock quantity is required';
+    if (formData.stock === '' || isNaN(formData.stock) || Number(formData.stock) < 0) {
+      newErrors.stock = 'Valid stock quantity is required';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;

@@ -1,4 +1,4 @@
-// Owner: M4 (Product Management & Dashboard)
+// Owner: M4
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -8,7 +8,6 @@ export default function ProductTable({
   loading = false,
   onDelete,
   onToggleStatus,
-  onUpdateStock,
   categories = [],
   selectedCategory,
   onCategoryChange,
@@ -16,26 +15,16 @@ export default function ProductTable({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
-  stockFilter,
-  onStockFilterChange,
 }) {
   const [productToDelete, setProductToDelete] = useState(null);
-  const [stockModalProduct, setStockModalProduct] = useState(null);
-  const [newStockVal, setNewStockVal] = useState('');
-  const [stockSubmitting, setStockSubmitting] = useState(false);
-  const [stockError, setStockError] = useState('');
 
   const getCurrencySymbol = (code) => {
     switch (code?.toUpperCase()) {
-      case 'USD':
-        return '$';
-      case 'EUR':
-        return '€';
-      case 'GBP':
-        return '£';
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
       case 'INR':
-      default:
-        return '₹';
+      default: return '₹';
     }
   };
 
@@ -52,12 +41,8 @@ export default function ProductTable({
             fontWeight: 600,
             backgroundColor: '#fee2e2',
             color: '#b91c1c',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
           }}
         >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#b91c1c' }} />
           Out of Stock
         </span>
       );
@@ -72,12 +57,8 @@ export default function ProductTable({
             fontWeight: 600,
             backgroundColor: '#fef3c7',
             color: '#b45309',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
           }}
         >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#b45309' }} />
           Low Stock ({stock})
         </span>
       );
@@ -91,47 +72,11 @@ export default function ProductTable({
           fontWeight: 600,
           backgroundColor: '#dcfce7',
           color: '#15803d',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
         }}
       >
-        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#15803d' }} />
         In Stock ({stock})
       </span>
     );
-  };
-
-  const openStockModal = (product) => {
-    setStockModalProduct(product);
-    setNewStockVal(String(product.stock));
-    setStockError('');
-  };
-
-  const handleStockSubmit = async (e) => {
-    e.preventDefault();
-    const parsed = parseInt(newStockVal, 10);
-    if (isNaN(parsed) || parsed < 0) {
-      setStockError('Stock must be a non-negative whole number');
-      return;
-    }
-    if (parsed > 1000000) {
-      setStockError('Stock cannot exceed 1,000,000');
-      return;
-    }
-
-    try {
-      setStockSubmitting(true);
-      setStockError('');
-      if (onUpdateStock) {
-        await onUpdateStock(stockModalProduct._id, parsed);
-      }
-      setStockModalProduct(null);
-    } catch (err) {
-      setStockError(err?.response?.data?.message || err?.message || 'Failed to update stock');
-    } finally {
-      setStockSubmitting(false);
-    }
   };
 
   return (
@@ -144,7 +89,7 @@ export default function ProductTable({
         overflow: 'hidden',
       }}
     >
-      {/* Controls Bar: Search, Category, Status, Stock Filter */}
+      {/* Controls Bar: Search, Category, Status */}
       <div
         style={{
           padding: '18px 24px',
@@ -156,9 +101,9 @@ export default function ProductTable({
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', flex: 1, minWidth: '260px', gap: '10px' }}>
+        <div style={{ display: 'flex', flex: 1, minWidth: '260px', gap: '10px' }}>
           {/* Search Bar */}
-          <div style={{ position: 'relative', flex: '1 1 200px' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
             <svg
               style={{
                 position: 'absolute',
@@ -234,27 +179,6 @@ export default function ProductTable({
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
           </select>
-
-          {/* Stock Level Filter */}
-          <select
-            value={stockFilter || 'all'}
-            onChange={(e) => onStockFilterChange?.(e.target.value)}
-            style={{
-              padding: '9px 14px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-              backgroundColor: '#fff',
-              color: '#334155',
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-          >
-            <option value="all">All Stock Levels</option>
-            <option value="in_stock">In Stock (&gt;5)</option>
-            <option value="low_stock">Low Stock (1-5)</option>
-            <option value="out_of_stock">Out of Stock (0)</option>
-          </select>
         </div>
 
         <Link
@@ -308,7 +232,7 @@ export default function ProductTable({
                   <div style={{ fontSize: '36px', marginBottom: '8px' }}>📦</div>
                   <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>No products found</div>
                   <div style={{ fontSize: '13px', marginTop: '4px', color: '#64748b' }}>
-                    Try adjusting your search filters or add a new product.
+                    Get started by adding your first product to this store.
                   </div>
                   <Link
                     to="/dashboard/products/new"
@@ -411,29 +335,8 @@ export default function ProductTable({
                       )}
                     </td>
 
-                    {/* Stock Badge & Quick Adjust */}
-                    <td style={{ padding: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getStockBadge(product.stock)}
-                        <button
-                          type="button"
-                          onClick={() => openStockModal(product)}
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid #cbd5e1',
-                            backgroundColor: '#f8fafc',
-                            color: '#475569',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                          title="Quick update stock"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </td>
+                    {/* Stock Badge */}
+                    <td style={{ padding: '16px' }}>{getStockBadge(product.stock)}</td>
 
                     {/* Active Toggle Switch */}
                     <td style={{ padding: '16px' }}>
@@ -536,126 +439,6 @@ export default function ProductTable({
           </tbody>
         </table>
       </div>
-
-      {/* Quick Stock Adjustment Modal */}
-      {stockModalProduct && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            backdropFilter: 'blur(3px)',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '16px',
-              padding: '24px',
-              maxWidth: '380px',
-              width: '90%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
-            }}
-          >
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
-              Quick Stock Update
-            </div>
-            <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
-              Update available stock for <strong>"{stockModalProduct.name}"</strong>
-            </p>
-
-            <form onSubmit={handleStockSubmit} style={{ marginTop: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                Stock Quantity (Units)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={newStockVal}
-                onChange={(e) => setNewStockVal(e.target.value)}
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  outline: 'none',
-                }}
-              />
-              {stockError && (
-                <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '6px', display: 'block' }}>
-                  {stockError}
-                </span>
-              )}
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                {[0, 5, 10, 25, 50, 100].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setNewStockVal(String(preset))}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      borderRadius: '4px',
-                      border: '1px solid #e2e8f0',
-                      backgroundColor: '#f8fafc',
-                      color: '#475569',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button
-                  type="button"
-                  onClick={() => setStockModalProduct(null)}
-                  style={{
-                    padding: '9px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#fff',
-                    color: '#475569',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={stockSubmitting}
-                  style={{
-                    padding: '9px 18px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: '#2563eb',
-                    color: '#fff',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: stockSubmitting ? 'not-allowed' : 'pointer',
-                    opacity: stockSubmitting ? 0.7 : 1,
-                  }}
-                >
-                  {stockSubmitting ? 'Saving...' : 'Update Stock'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {productToDelete && (

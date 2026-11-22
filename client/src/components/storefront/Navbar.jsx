@@ -1,6 +1,6 @@
 // Owner: M3 -- announcement bar + store nav (logo left/center, sticky, mobile menu). `preview` renders inert links.
 import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import useCart from '../../hooks/useCart';
 import { resolveTheme } from '../../theme/themeConfig';
 import { IconCart, IconMenu, IconSearch, IconX, IconHeart } from '../common/Icons';
@@ -23,14 +23,6 @@ const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior:
 export default function Navbar({ store, preview = false }) {
   const t = resolveTheme(store);
   const base = `/store/${store.slug}`;
-  const navigate = useNavigate();
-  // Homepage sections: scroll if we're on the homepage, otherwise go there first
-  const goSection = (id) => {
-    setOpen(false);
-    if (document.getElementById(id)) return scrollTo(id);
-    navigate(base);
-    return setTimeout(() => scrollTo(id), 350);
-  };
   const { count } = useCart(store.slug);
   const { user } = useAuth();
   const isStoreCustomer = user?.role === 'customer' && String(user.customerStore) === String(store?._id);
@@ -45,9 +37,8 @@ export default function Navbar({ store, preview = false }) {
   const links = (
     <>
       <A to={base} end>Shop</A>
-      <A to={`${base}/products`}>All products</A>
-      {hasCats && <A onClick={() => goSection('sf-categories')}>Categories</A>}
-      {hasAbout && <A onClick={() => goSection('sf-about')}>About</A>}
+      {hasCats && <A onClick={() => { setOpen(false); scrollTo('sf-categories'); }}>Categories</A>}
+      {hasAbout && <A onClick={() => { setOpen(false); scrollTo('sf-about'); }}>About</A>}
       {(!user || isStoreCustomer) ? <A to={`${base}/orders`}>My orders</A> : null}
       {!preview && (isStoreCustomer
         ? <A to={`${base}/account`}>Customer account</A>
@@ -73,7 +64,7 @@ export default function Navbar({ store, preview = false }) {
           <div className="sf-links">{links}</div>
           <div className="sf-actions">
             {!preview ? (
-              <button type="button" className="sf-icon-btn hide-xs" aria-label="Search products" onClick={() => navigate(`${base}/products`, { state: { focusSearch: Date.now() } })}>
+              <button type="button" className="sf-icon-btn hide-xs" aria-label="Search products" onClick={() => { scrollTo('sf-products'); setTimeout(() => document.querySelector('.sf-search input')?.focus(), 400); }}>
                 <IconSearch size={19} />
               </button>
             ) : <span className="sf-icon-btn hide-xs"><IconSearch size={19} /></span>}

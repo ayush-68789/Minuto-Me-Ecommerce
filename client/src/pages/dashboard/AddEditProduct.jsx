@@ -1,4 +1,4 @@
-// Owner: M4 (Product Management & Dashboard)
+// Owner: M4
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Sidebar from '../../components/dashboard/Sidebar';
@@ -22,29 +22,25 @@ export default function AddEditProduct() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
     const init = async () => {
       try {
         const storeRes = await fetchStoreSettings().catch(() => null);
-        if (storeRes?.store && isMounted) setStore(storeRes.store);
+        if (storeRes?.store) setStore(storeRes.store);
 
         if (isEditMode) {
           const prodRes = await fetchProductById(id);
-          if (prodRes?.product && isMounted) {
+          if (prodRes?.product) {
             setProduct(prodRes.product);
           }
         }
       } catch (err) {
         console.error('Error loading product form data:', err);
-        if (isMounted) setError('Failed to load product details. It may not exist or belongs to another store.');
+        setError('Failed to load product details');
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     };
     init();
-    return () => {
-      isMounted = false;
-    };
   }, [id, isEditMode]);
 
   const handleSubmit = async (formData) => {
@@ -61,16 +57,7 @@ export default function AddEditProduct() {
       navigate('/dashboard/products');
     } catch (err) {
       console.error('Error saving product:', err);
-      const serverMsg = err?.response?.data?.message;
-      const fieldErrors = err?.response?.data?.errors;
-      if (fieldErrors && typeof fieldErrors === 'object') {
-        const details = Object.entries(fieldErrors)
-          .map(([f, msgs]) => `${f}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-          .join('; ');
-        setError(`Validation error: ${details}`);
-      } else {
-        setError(serverMsg || 'Failed to save product. Please check your inputs.');
-      }
+      setError(err?.response?.data?.message || 'Failed to save product. Please check your inputs.');
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +84,7 @@ export default function AddEditProduct() {
         >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b' }}>
-              <Link to="/dashboard/products" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>
+              <Link to="/dashboard/products" style={{ color: '#2563eb', textDecoration: 'none' }}>
                 Products
               </Link>
               <span>/</span>
@@ -114,51 +101,23 @@ export default function AddEditProduct() {
           {error && (
             <div
               style={{
+                padding: '14px 18px',
+                borderRadius: '8px',
                 backgroundColor: '#fef2f2',
                 border: '1px solid #fecaca',
                 color: '#b91c1c',
-                padding: '14px 18px',
-                borderRadius: '10px',
-                marginBottom: '24px',
                 fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                marginBottom: '24px',
               }}
             >
-              <span>{error}</span>
-              <button
-                type="button"
-                onClick={() => setError(null)}
-                style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: '16px' }}
-              >
-                ×
-              </button>
+              {error}
             </div>
           )}
 
           {loading ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '80px 20px',
-                color: '#64748b',
-              }}
-            >
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  border: '3px solid #cbd5e1',
-                  borderTopColor: '#2563eb',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                }}
-              />
-              <span style={{ marginTop: '14px', fontSize: '14px' }}>Loading product details...</span>
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748b' }}>
+              <div style={{ display: 'inline-block', width: '32px', height: '32px', border: '3px solid #cbd5e1', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              <div style={{ marginTop: '12px' }}>Loading product details...</div>
             </div>
           ) : (
             <ProductForm
@@ -166,7 +125,7 @@ export default function AddEditProduct() {
               onSubmit={handleSubmit}
               isSubmitting={submitting}
               currency={store?.currency || 'INR'}
-              title={isEditMode ? 'Update Product' : 'Create Product'}
+              title={isEditMode ? 'Edit Product' : 'Add Product'}
             />
           )}
         </div>
