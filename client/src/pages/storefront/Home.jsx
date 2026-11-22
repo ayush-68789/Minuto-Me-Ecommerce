@@ -1,4 +1,4 @@
-// Owner: Member 4 -- storefront landing: renders the sections the owner enabled, in their order
+// Owner: M3 -- storefront landing: renders the sections the owner enabled, in their order
 import { useRef, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import useCart from '../../hooks/useCart';

@@ -1,4 +1,4 @@
-// Owner: Member 4 -- one product tile; its look comes from the store's card style (data-card on .sf)
+// Owner: M3 -- one product tile; its look comes from the store's card style (data-card on .sf)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import formatCurrency from '../../utils/formatCurrency';

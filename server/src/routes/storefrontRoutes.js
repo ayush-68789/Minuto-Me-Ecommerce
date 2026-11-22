@@ -1,4 +1,4 @@
-// Owner: Member 4 — Public, read-only storefront data (no auth)
+// Owner: M3 -- public, read-only storefront data (no auth)
 import express from 'express';
 import Store from '../models/Store.js';
 import Product from '../models/Product.js';

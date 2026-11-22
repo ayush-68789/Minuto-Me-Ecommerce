@@ -1,163 +1,88 @@
-// Owner: M2 - Products & Dashboard (branding, theme and onboarding fields: Member 5 - Onboarding & Studio)
+// Owner: M1  (schema agreed with M2, M3, M4 -- change via PR only)
 import mongoose from 'mongoose';
-
-export const STORE_TEMPLATES = ['modern', 'bold', 'minimal', 'luxe', 'playful', 'neon', 'editorial', 'organic'];
-
-const HEX = /^#[\da-f]{6}$/i;
-const hexColor = (fallback) => ({
-  type: String,
-  trim: true,
-  default: fallback,
-  validate: { validator: (v) => !v || HEX.test(v), message: 'Colors must be 6-digit hex values like #4f46e5' },
-});
 
 const storeSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
-    },
-    // The storefront, cart and orders read businessName; it is kept in sync with name
-    businessName: {
-      type: String,
-      trim: true,
-      maxlength: 100,
-    },
-    slug: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      maxlength: 100,
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-      default: '',
-    },
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      index: true,
-    },
-    logo: {
-      type: String,
-      default: '',
-    },
-    banner: {
-      type: String,
-      default: '',
-    },
-    category: {
-      type: String,
-      trim: true,
-      default: 'General',
-    },
-    currency: {
-      type: String,
-      default: 'USD',
-      uppercase: true,
-    },
-    status: {
-      type: String,
-      enum: ['active', 'inactive', 'draft'],
-      default: 'active',
-    },
-    settings: {
-      contactEmail: { type: String, trim: true, default: '' },
-      contactPhone: { type: String, trim: true, default: '' },
-      address: { type: String, trim: true, default: '' },
-      theme: { type: String, default: 'modern' },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+
+    // Basic info (M2 form)
+    businessName: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, unique: true, lowercase: true, trim: true }, // used in /store/:slug
+    category: { type: String, required: true, trim: true },
+    description: { type: String, default: '', maxlength: 1000 },
+
+    // Branding (applied dynamically by M3's storefront)
+    branding: {
+      logo: { type: String, default: '' }, // image URL
+      primaryColor: { type: String, default: '#111827' },
+      secondaryColor: { type: String, default: '#f3f4f6' },
+      accentColor: { type: String, default: '#2563eb' },
+      banners: [{ type: String }], // image URLs
     },
 
-    // ---- Studio: everything the storefront template renders (see client/src/theme/themeConfig.js) ----
-    template: {
-      type: String,
-      enum: STORE_TEMPLATES,
-      default: 'modern',
+    // Settings
+    currency: { type: String, default: 'INR' }, // ISO code, e.g. INR, USD
+    contact: {
+      email: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      address: { type: String, default: '' },
     },
-    branding: {
-      logo: { type: String, trim: true, default: '' },
-      primaryColor: hexColor('#4f46e5'),
-      secondaryColor: hexColor('#eef2ff'),
-      accentColor: hexColor('#f97316'),
-      banners: {
-        type: [String],
-        default: [],
-        validate: { validator: (v) => v.length <= 6, message: 'A store can have at most 6 banner images' },
+
+    // Features the client asked for
+    features: {
+      payments: { type: Boolean, default: false },
+      reviews: { type: Boolean, default: false },
+      wishlist: { type: Boolean, default: false },
+      coupons: { type: Boolean, default: false },
+    },
+
+    // Storefront design (M2 studio). Values are sanitized in validators/storeValidator.js
+    template: { type: String, default: 'modern', maxlength: 30 },
+    theme: {
+      preset: { type: String, default: 'aurora' },
+      mode: { type: String, default: 'light' }, // light | tinted | dark
+      font: { type: String, default: 'jakarta' },
+      radius: { type: String, default: 'soft' },
+      buttonStyle: { type: String, default: 'solid' },
+      cardStyle: { type: String, default: 'clean' },
+      heroLayout: { type: String, default: 'image' },
+      heroHeight: { type: String, default: 'standard' },
+      navStyle: { type: String, default: 'left' },
+      imageRatio: { type: String, default: 'square' },
+      animation: { type: String, default: 'subtle' },
+      pattern: { type: String, default: 'none' },
+      gridColumns: { type: Number, default: 4, min: 2, max: 5 },
+      mobileColumns: { type: Number, default: 2, min: 1, max: 2 },
+      showAnnouncement: { type: Boolean, default: false },
+      stickyNav: { type: Boolean, default: true },
+      sections: [{ _id: false, key: String, on: Boolean }],
+      content: {
+        heroTitle: String,
+        heroSubtitle: String,
+        ctaText: String,
+        announcement: String,
+        marquee: String,
+        promoTitle: String,
+        promoText: String,
+        aboutTitle: String,
+        aboutText: String,
+        newsletterTitle: String,
+        testimonials: [{ _id: false, name: String, text: String, rating: Number }],
       },
     },
-    // Free-form design options (mode, font, radius, sections, content...). The client resolves unknown
-    // or missing values to defaults, so old stores keep rendering as the studio grows.
-    theme: {
-      type: mongoose.Schema.Types.Mixed,
-      default: () => ({}),
-    },
-    contact: {
-      email: { type: String, trim: true, lowercase: true, default: '' },
-      phone: { type: String, trim: true, default: '' },
-      address: { type: String, trim: true, default: '' },
-    },
     social: {
-      instagram: { type: String, trim: true, default: '' },
-      facebook: { type: String, trim: true, default: '' },
-      twitter: { type: String, trim: true, default: '' },
-      youtube: { type: String, trim: true, default: '' },
-      whatsapp: { type: String, trim: true, default: '' },
+      instagram: { type: String, default: '' },
+      facebook: { type: String, default: '' },
+      twitter: { type: String, default: '' },
+      youtube: { type: String, default: '' },
+      whatsapp: { type: String, default: '' },
     },
-    features: {
-      wishlist: { type: Boolean, default: true },
-      reviews: { type: Boolean, default: true },
-      payments: { type: Boolean, default: false },
-    },
-    onboarding: {
-      completed: { type: Boolean, default: false },
-      completedAt: { type: Date, default: null },
-    },
-    // Newsletter sign-ups from the storefront. Never sent to the public store payload.
-    subscribers: {
-      type: [
-        {
-          _id: false,
-          email: { type: String, trim: true, lowercase: true },
-          createdAt: { type: Date, default: Date.now },
-        },
-      ],
-      default: [],
-      select: false,
-    },
+    // Newsletter sign-ups from the storefront (never sent to the public storefront API)
+    subscribers: { type: [{ _id: false, email: String, createdAt: { type: Date, default: Date.now } }], select: false },
+
+    status: { type: String, enum: ['draft', 'active', 'suspended'], default: 'active' },
   },
   { timestamps: true }
 );
 
-// Keep the legacy dashboard fields (name/logo/banner/settings) and the studio fields pointing at the same data
-storeSchema.pre('validate', function syncLegacyFields() {
-  if (this.isModified('businessName') && this.businessName) this.name = this.businessName;
-  else if (this.name) this.businessName = this.name;
-
-  if (this.isModified('branding.logo')) this.logo = this.branding.logo;
-  else if (this.logo && !this.branding?.logo) this.branding.logo = this.logo;
-
-  if (this.isModified('branding.banners')) this.banner = this.branding.banners[0] || '';
-  else if (this.banner && !this.branding?.banners?.length) this.branding.banners = [this.banner];
-
-  if (this.isModified('contact')) {
-    this.settings.contactEmail = this.contact.email;
-    this.settings.contactPhone = this.contact.phone;
-    this.settings.address = this.contact.address;
-  } else if (this.isModified('settings') || this.isNew) {
-    this.contact.email = this.settings.contactEmail || this.contact.email;
-    this.contact.phone = this.settings.contactPhone || this.contact.phone;
-    this.contact.address = this.settings.address || this.contact.address;
-  }
-
-  if (this.isModified('template')) this.settings.theme = this.template;
-  else if (STORE_TEMPLATES.includes(this.settings?.theme)) this.template = this.settings.theme;
-});
-
-export default mongoose.models.Store || mongoose.model('Store', storeSchema);
+export default mongoose.model('Store', storeSchema);

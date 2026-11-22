@@ -1,4 +1,4 @@
-// Owner: Member 4
+// Owner: M3
 import ProductCard from './ProductCard';
 
 export default function ProductGrid({ products, store, onAdd, preview, emptyText }) {
