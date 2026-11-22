@@ -30,7 +30,6 @@ const storeSchema = new mongoose.Schema(
 
     // Features the client asked for
     features: {
-      payments: { type: Boolean, default: false },
       reviews: { type: Boolean, default: false },
       wishlist: { type: Boolean, default: false },
       coupons: { type: Boolean, default: false },

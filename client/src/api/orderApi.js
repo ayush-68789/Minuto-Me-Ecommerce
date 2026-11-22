@@ -12,11 +12,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Turns an axios error into { message, status, issues } for the UI
+// Turns an axios error into { message, status, code, issues, updatedQuote } for the UI
 export const toApiError = (err) => ({
   message: err.response?.data?.message || err.message || 'Something went wrong',
   status: err.response?.status || 0,
+  code: err.response?.data?.code || null,
   issues: err.response?.data?.issues || [],
+  updatedQuote: err.response?.data?.updatedQuote || null,
 });
 
 const call = async (request) => {
@@ -34,19 +36,25 @@ const toLines = (items) => items.map(({ productId, quantity }) => ({ productId, 
 export const quoteCart = (storeSlug, items) =>
   call(api.post('/orders/quote', { storeSlug, items: toLines(items) }));
 
-export const createOrder = (storeSlug, items, details) =>
-  call(api.post('/orders', { storeSlug, items: toLines(items), ...details }));
+export const createOrder = (storeSlug, items, details, idempotencyKey = null) => {
+  const headers = idempotencyKey ? { 'idempotency-key': idempotencyKey } : {};
+  return call(
+    api.post(
+      '/orders',
+      { storeSlug, items: toLines(items), ...details },
+      { headers }
+    )
+  );
+};
 
-export const trackOrder = (orderId, email) =>
-  call(api.get(`/orders/track/${orderId}`, { params: { email } }));
+export const trackOrder = (orderId) => call(api.get(`/orders/track/${orderId}`));
 
 export const fetchMyOrders = (storeSlug) => call(api.get('/orders/my', { params: { storeSlug } }));
-
-export const simulatePayment = (orderId, email) =>
-  call(api.post(`/payments/${orderId}/simulate`, { email }));
 
 // Store owner (for the dashboard)
 export const fetchStoreOrders = (params = {}) => call(api.get('/orders/store', { params }));
 
 export const updateOrderStatus = (orderId, status) =>
   call(api.patch(`/orders/${orderId}/status`, { status }));
+
+export const deleteOrder = (orderId) => call(api.delete(`/orders/${orderId}`));

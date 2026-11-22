@@ -24,7 +24,7 @@ const MODULES = [
   [IconBrush, 'Store Builder', 'Pick a template, set theme colors, upload your logo and banners.', '#fdf2f8', '#db2777'],
   [IconBox, 'Product Management', 'Add, edit and delete products with categories, stock, pricing and images.', '#ecfeff', '#0891b2'],
   [IconStore, 'Storefront', 'A public, branded store page per owner with search, filters and product pages.', '#f0fdf4', '#16a34a'],
-  [IconCart, 'Cart & Checkout', 'Add to cart, order summary and secure (sandbox) payment flow.', '#fff7ed', '#ea580c'],
+  [IconCart, 'Cart & Checkout', 'Add to cart, order summary and streamlined checkout flow.', '#fff7ed', '#ea580c'],
   [IconTruck, 'Order Management', 'Order history, live status tracking from pending to delivered.', '#f5f3ff', '#7c3aed'],
   [IconAdmin, 'Admin Panel', 'Monitor users and stores, moderate content and view platform analytics.', '#fef2f2', '#dc2626'],
 ];
@@ -35,7 +35,7 @@ const ROLES = [
   ['Admin', 'Keep the platform healthy and every storefront trustworthy.', ['Manage users & stores', 'Handle reports & disputes', 'Platform-wide analytics'], '#f97316'],
 ];
 
-const TECH = ['MongoDB', 'Express.js', 'React', 'Node.js', 'JWT Auth', 'bcrypt', 'Cloudinary', 'Razorpay / Stripe', 'three.js'];
+const TECH = ['MongoDB', 'Express.js', 'React', 'Node.js', 'JWT Auth', 'bcrypt', 'Cloudinary', 'three.js'];
 
 export default function Landing() {
   const { user, logout } = useAuth();

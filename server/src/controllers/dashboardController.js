@@ -4,6 +4,7 @@ import Store from '../models/Store.js';
 import { designUpdate } from './storeController.js';
 import Order from '../models/Order.js';
 import { resolveMyStore } from './storeController.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 // The logged-in owner's store -- never trust a store id sent by the client
 const resolveStore = resolveMyStore;
@@ -139,9 +140,10 @@ export const updateStoreDetails = async (req, res, next) => {
     }
 
     if (features) {
+      const cleanFeatures = { ...features };
       store.features = {
         ...store.features?.toObject?.() || store.features || {},
-        ...features,
+        ...cleanFeatures,
       };
     }
 
@@ -149,6 +151,15 @@ export const updateStoreDetails = async (req, res, next) => {
     for (const [path, value] of Object.entries(designUpdate(req.body))) store.set(path, value);
 
     await store.save();
+
+    await logAudit({
+      req,
+      storeId: store._id,
+      action: 'STORE_SETTINGS_UPDATE',
+      resourceType: 'Store',
+      resourceId: store._id,
+      details: { businessName: store.businessName, category: store.category },
+    });
 
     res.json({
       success: true,

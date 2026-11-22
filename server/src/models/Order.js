@@ -4,20 +4,18 @@ import mongoose from 'mongoose';
 const orderItemSchema = new mongoose.Schema(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-    // Snapshot at purchase time, so later product edits don't change old orders
     name: { type: String, required: true },
     image: { type: String, default: '' },
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
+    restocked: { type: Boolean, default: false },
   },
   { _id: false }
 );
 
 const orderSchema = new mongoose.Schema(
   {
-    // Multi-tenancy: order belongs to exactly one store
     store: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
-    // Logged-in customer (optional to allow guest checkout)
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
     customerInfo: {
@@ -39,16 +37,25 @@ const orderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     shippingFee: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
+    paymentMethod: { type: String, enum: ['cod', 'online'], default: 'cod' },
 
     status: {
       type: String,
       enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
-      default: 'pending',
+      default: 'confirmed',
     },
-    payment: {
-      method: { type: String, enum: ['cod', 'online'], default: 'cod' },
-      status: { type: String, enum: ['unpaid', 'paid', 'failed', 'refunded'], default: 'unpaid' },
-      transactionId: { type: String, default: '' },
+
+    cancellationState: {
+      type: String,
+      enum: ['none', 'in_progress', 'completed', 'failed'],
+      default: 'none',
+      index: true,
+    },
+
+    metadata: {
+      idempotencyKey: { type: String, index: true },
+      reservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryReservation', index: true },
+      quoteHash: { type: String },
     },
   },
   { timestamps: true }

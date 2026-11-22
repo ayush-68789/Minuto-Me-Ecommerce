@@ -31,12 +31,14 @@ export function validateAddress({ customerInfo: c, shippingAddress: a }) {
   return errors;
 }
 
-export default function AddressForm({ value, onChange, errors = {} }) {
+export default function AddressForm({ value, onChange, errors = {}, savedAccount = false }) {
   const set = (group, key, v) => onChange({ ...value, [group]: { ...value[group], [key]: v } });
+  const visibleFields = savedAccount ? fields.filter(([group, key]) => !(group === 'customerInfo' && ['name', 'email'].includes(key))) : fields;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-      {fields.map(([group, key, label, type, autoComplete]) => (
+      {savedAccount && <div style={{ gridColumn: '1 / -1', color: '#475569', fontSize: 14 }}>Ordering as <strong>{value.customerInfo.name}</strong> · {value.customerInfo.email}</div>}
+      {visibleFields.map(([group, key, label, type, autoComplete]) => (
         <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14 }}>
           {label}
           <input
