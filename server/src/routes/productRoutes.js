@@ -1,4 +1,4 @@
-// Owner: M4
+// Owner: M4 (Product Management & Dashboard)
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
 import {
@@ -12,6 +12,7 @@ import {
 
 const router = express.Router();
 
+// Require authentication for all merchant product management routes
 router.use(authMiddleware);
 
 router.get('/', getProducts);
