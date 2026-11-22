@@ -1,4 +1,4 @@
-// Owner: Member 4 — Shopper wishlist hook, saved per store and synchronized across tabs
+// Shopper wishlist, saved per store in this browser and kept in sync across components/tabs
 import { useCallback, useEffect, useState } from 'react';
 
 const KEY = 'minuto_wishlist';
