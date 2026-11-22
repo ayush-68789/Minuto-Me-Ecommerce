@@ -19,6 +19,20 @@ export const updateStore = (id, data) =>
 export const deleteStore = (id) =>
   api.delete(`/stores/${id}`).then((r) => r.data);
 
+// Onboarding + studio (Member 5)
+export const checkSlug = (slug, storeId) =>
+  api.get('/stores/check-slug', { params: { slug, storeId } }).then((r) => r.data);
+
+export const uploadStoreImage = (file, onProgress) => {
+  const body = new FormData();
+  body.append('image', file);
+  return api
+    .post('/stores/upload', body, {
+      onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
+    })
+    .then((r) => r.data.url);
+};
+
 export const fetchDashboardSummary = (params = {}) =>
   api.get('/dashboard/summary', { params }).then((r) => r.data);
 
@@ -35,6 +49,8 @@ export default {
   createStore,
   updateStore,
   deleteStore,
+  checkSlug,
+  uploadStoreImage,
   fetchDashboardSummary,
   fetchLowStockAlerts,
   storeErrorMessage,
