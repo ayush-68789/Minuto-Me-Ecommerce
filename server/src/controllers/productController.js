@@ -1,7 +1,7 @@
 // Owner: M4 (Product Management & Dashboard)
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
-import { validateProduct, validateProductUpdate } from '../validators/productValidator.js';
+import { validateProduct, validateProductUpdate, validateStockAdjustment } from '../validators/productValidator.js';
 import { resolveMyStore } from './storeController.js';
 import { escapeRegex, parsePagination, buildProductFilter, parseSort } from '../utils/queryHelper.js';
 import { logAudit } from '../utils/auditLogger.js';
@@ -260,6 +260,138 @@ export const toggleProductStatus = async (req, res, next) => {
       success: true,
       message: `Product marked as ${product.isActive ? 'active' : 'inactive'}`,
       product,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/products/:id/stock
+// Direct or differential stock updates with atomic consistency and negative stock prevention
+export const updateStock = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ success: false, message: 'Store not found or unauthorized' });
+    }
+
+    const { stock, delta, adjustment } = req.body;
+    const diff = delta !== undefined ? delta : adjustment;
+
+    let product;
+
+    if (diff !== undefined) {
+      const diffNum = Number(diff);
+      if (!Number.isInteger(diffNum)) {
+        return res.status(400).json({ success: false, message: 'Stock adjustment must be an integer' });
+      }
+
+      if (diffNum < 0) {
+        // Atomic decrement with insufficient stock guard
+        product = await Product.findOneAndUpdate(
+          {
+            _id: req.params.id,
+            store: storeId,
+            stock: { $gte: Math.abs(diffNum) },
+          },
+          { $inc: { stock: diffNum } },
+          { new: true, runValidators: true }
+        );
+
+        if (!product) {
+          const existing = await Product.findOne({ _id: req.params.id, store: storeId });
+          if (!existing) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+          }
+          return res.status(400).json({
+            success: false,
+            message: `Cannot reduce stock below zero. Current stock is ${existing.stock}, requested reduction is ${Math.abs(diffNum)}.`,
+            currentStock: existing.stock,
+          });
+        }
+      } else {
+        // Increment
+        product = await Product.findOneAndUpdate(
+          { _id: req.params.id, store: storeId },
+          { $inc: { stock: diffNum } },
+          { new: true, runValidators: true }
+        );
+        if (!product) {
+          return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+      }
+    } else if (stock !== undefined) {
+      // Direct set
+      const stockNum = Number(stock);
+      if (isNaN(stockNum) || !Number.isInteger(stockNum) || stockNum < 0) {
+        return res.status(400).json({ success: false, message: 'Stock must be a non-negative integer' });
+      }
+      if (stockNum > 1000000) {
+        return res.status(400).json({ success: false, message: 'Stock cannot exceed 1,000,000 units' });
+      }
+
+      product = await Product.findOneAndUpdate(
+        { _id: req.params.id, store: storeId },
+        { $set: { stock: stockNum } },
+        { new: true, runValidators: true }
+      );
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+    } else {
+      return res.status(400).json({ success: false, message: 'Stock value or adjustment delta is required' });
+    }
+
+    const stockStatus = product.stock === 0 ? 'out_of_stock' : product.stock <= 5 ? 'low_stock' : 'in_stock';
+
+    await logAudit({
+      req,
+      storeId,
+      action: 'PRODUCT_STOCK_UPDATE',
+      resourceType: 'Product',
+      resourceId: product._id,
+      details: { newStock: product.stock, stockStatus },
+    });
+
+    res.json({
+      success: true,
+      message: 'Stock updated successfully',
+      product,
+      stockStatus,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/products/inventory/alerts
+// Fetch low stock and out-of-stock products for the store
+export const getInventoryAlerts = async (req, res, next) => {
+  try {
+    const storeId = await resolveStoreId(req);
+    if (!storeId) {
+      return res.status(400).json({ success: false, message: 'Store not found or unauthorized' });
+    }
+
+    const [outOfStock, lowStock] = await Promise.all([
+      Product.find({ store: storeId, stock: 0 }).sort({ updatedAt: -1 }).lean(),
+      Product.find({ store: storeId, stock: { $gt: 0, $lte: 5 } }).sort({ stock: 1 }).lean(),
+    ]);
+
+    res.json({
+      success: true,
+      alerts: {
+        outOfStock,
+        lowStock,
+        outOfStockCount: outOfStock.length,
+        lowStockCount: lowStock.length,
+        totalAlerts: outOfStock.length + lowStock.length,
+      },
     });
   } catch (err) {
     next(err);
