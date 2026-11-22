@@ -116,7 +116,19 @@ export default function ManageOrders() {
                 </div>
 
                 <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #f1f5f9', color: '#475569', fontSize: 14 }}>
-                  {order.items.map((item) => <div key={`${item.product}-${item.name}`}>{item.name} × {item.quantity} <span style={{ color: '#64748b' }}>· {money(item.price * item.quantity)}</span></div>)}
+                  {order.items.map((item) => (
+                    <div key={`${item.product}-${item.name}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>{item.name} × {item.quantity}</span>
+                        {item.restocked && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, backgroundColor: '#dcfce7', color: '#166534' }}>
+                            Restocked
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ color: '#64748b' }}>{money(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
                 </div>
 
                 <footer style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 16 }}>
