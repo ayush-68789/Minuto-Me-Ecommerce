@@ -6,6 +6,7 @@ import connectDB from './src/config/db.js';
 import Store from './src/models/Store.js';
 import Order from './src/models/Order.js';
 import Idempotency from './src/models/Idempotency.js';
+import RefreshToken from './src/models/RefreshToken.js';
 import { recoverStaleReservations, recoverStaleCancellations } from './src/services/recoveryService.js';
 
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,7 @@ async function bootstrap() {
       { 'response.trackingToken': { $exists: true } },
       { $unset: { 'response.trackingToken': '' } }
     );
+    await RefreshToken.createIndexes();
 
     // Reconcile and fix legacy indexes safely
     let indexes = [];

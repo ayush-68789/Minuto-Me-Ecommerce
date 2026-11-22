@@ -7,7 +7,9 @@ const authMiddleware = async(req, res, next) => {
         const authorization = req.headers.authorization;
         const bearer = authorization && authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : null;
 
-        const token = bearer || req.cookies?.token;
+        const accessCookie = req.cookies?.access_token;
+        const legacyCookie = req.cookies?.token;
+        const token = bearer || accessCookie || legacyCookie;
         if (!token)
         {
             return res.status(401).json({
@@ -23,7 +25,11 @@ const authMiddleware = async(req, res, next) => {
             });
         }
 
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const isLegacyCookie = !bearer && !accessCookie && Boolean(legacyCookie);
+        const payload = jwt.verify(token, process.env.JWT_SECRET, isLegacyCookie ? {} : {
+            audience: 'minuto-api',
+            issuer: 'minuto-me',
+        });
         const user = await User.findById(payload.id);
         if (!user)
         {

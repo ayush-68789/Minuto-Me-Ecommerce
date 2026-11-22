@@ -30,7 +30,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+const clientOrigins = new Set(
+  String(process.env.CLIENT_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || clientOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('This client origin is not allowed'));
+  },
+  credentials: true,
+}));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '3mb' })); // logos/banners uploaded from the store studio arrive as compressed data URLs
 app.use(cookieParser());

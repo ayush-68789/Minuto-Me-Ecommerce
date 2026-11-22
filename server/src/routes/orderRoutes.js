@@ -6,6 +6,7 @@ import {
   createOrder,
   trackOrder,
   getMyOrders,
+  getMyOrder,
   getStoreOrders,
   updateOrderStatus,
   deleteOrder,
@@ -20,6 +21,7 @@ router.get('/track/:id', trackOrder);
 
 // Customer
 router.get('/my', authMiddleware, getMyOrders);
+router.get('/my/:id', authMiddleware, getMyOrder);
 
 // Store owner
 router.get('/store', authMiddleware, getStoreOrders);

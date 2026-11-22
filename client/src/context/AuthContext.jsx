@@ -16,6 +16,12 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const expireSession = () => setUser(null);
+    window.addEventListener('minuto-auth-expired', expireSession);
+    return () => window.removeEventListener('minuto-auth-expired', expireSession);
+  }, []);
+
   const login = useCallback(async (data) => {
     const u = await loginRequest(data);
     setUser(u);

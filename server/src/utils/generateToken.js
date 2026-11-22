@@ -9,7 +9,9 @@ const generateToken = (userId) => {
     const token = jwt.sign({
         id: userId.toString()
     }, process.env.JWT_SECRET, {
-        expiresIn: '7d'
+        expiresIn: '15m',
+        audience: 'minuto-api',
+        issuer: 'minuto-me',
     });
     return token;
 };

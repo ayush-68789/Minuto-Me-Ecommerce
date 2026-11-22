@@ -1,16 +1,5 @@
 // Owner: M5
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  withCredentials: true,
-});
-
-api.interceptors.request.use((config) => {
-  const storeId = localStorage.getItem('minuto_store_id');
-  if (storeId) config.headers['x-store-id'] = storeId;
-  return config;
-});
+import api from './axiosInstance';
 
 // Turns an axios error into { message, status, code, issues, updatedQuote } for the UI
 export const toApiError = (err) => ({
@@ -50,6 +39,8 @@ export const createOrder = (storeSlug, items, details, idempotencyKey = null) =>
 export const trackOrder = (orderId) => call(api.get(`/orders/track/${orderId}`));
 
 export const fetchMyOrders = (storeSlug) => call(api.get('/orders/my', { params: { storeSlug } }));
+export const fetchMyOrder = (orderId, storeSlug) =>
+  call(api.get(`/orders/my/${orderId}`, { params: { storeSlug } }));
 
 // Store owner (for the dashboard)
 export const fetchStoreOrders = (params = {}) => call(api.get('/orders/store', { params }));

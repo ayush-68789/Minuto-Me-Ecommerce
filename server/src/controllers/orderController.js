@@ -344,6 +344,29 @@ const getMyOrders = async (req, res, next) => {
   }
 };
 
+// GET /api/orders/my/:id?storeSlug=  (private details for the signed-in customer)
+const getMyOrder = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'customer') throw httpError(403, 'Customer account required');
+    if (!mongoose.isValidObjectId(req.params.id)) throw httpError(404, 'Order not found');
+    const storeSlug = String(req.query.storeSlug || '').trim().toLowerCase();
+    if (!storeSlug) throw httpError(400, 'Store slug is required');
+    const store = await findActiveStore(storeSlug);
+    if (String(req.user.customerStore) !== String(store._id)) {
+      throw httpError(403, 'This customer account belongs to a different store');
+    }
+    const order = await Order.findOne({
+      _id: req.params.id,
+      customer: req.user._id,
+      store: store._id,
+    }).populate('store', 'businessName slug currency');
+    if (!order) throw httpError(404, 'Order not found');
+    res.json({ order, store: storeSummary(order.store) });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET /api/orders/store?status=&page=&limit=  (store owner)
 const getStoreOrders = async (req, res, next) => {
   try {
@@ -503,4 +526,4 @@ const deleteOrder = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-export { createOrder, trackOrder, getMyOrders, getStoreOrders, updateOrderStatus, deleteOrder };
+export { createOrder, trackOrder, getMyOrders, getMyOrder, getStoreOrders, updateOrderStatus, deleteOrder };

@@ -1,27 +1,43 @@
 // Owner: M1
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
+import { issueRefreshToken, renewRefreshToken, revokeRefreshToken, revokeUserRefreshTokens, REFRESH_TTL_MS } from '../services/refreshTokens.js';
 import Store from '../models/Store.js';
 import Review from '../models/Review.js';
 import Order from '../models/Order.js';
 import deleteStoreData from '../utils/deleteStoreData.js';
 
-const COOKIE_NAME = 'token';
+const ACCESS_COOKIE = 'access_token';
+const REFRESH_COOKIE = 'refresh_token';
+const ACCESS_TTL_MS = 15 * 60 * 1000;
 const COOKIE_OPTIONS = {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/api',
+};
+
+const setSessionCookies = (res, accessToken, refreshToken) => {
+    const crossSiteOptions = process.env.NODE_ENV === 'production'
+        ? { ...COOKIE_OPTIONS, sameSite: 'none', secure: true }
+        : COOKIE_OPTIONS;
+    res.cookie(ACCESS_COOKIE, accessToken, { ...crossSiteOptions, maxAge: ACCESS_TTL_MS });
+    res.cookie(REFRESH_COOKIE, refreshToken, { ...crossSiteOptions, maxAge: REFRESH_TTL_MS });
+    // Remove the legacy seven-day cookie after a successful upgrade.
+    res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
 };
 
 const hasJwtSecret = () => {
     return Boolean(process.env.JWT_SECRET && process.env.JWT_SECRET !== 'change_me');
 }
 
-const sendUser = (res, user, status = 200) => {
-    const token = generateToken(user._id);
-    res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+const sendUser = async (res, user, status = 200) => {
+    const accessToken = generateToken(user._id);
+    const refreshSession = await issueRefreshToken(user._id);
+    setSessionCookies(res, accessToken, refreshSession.token);
     return res.status(status).json({
+        accessToken,
+        expiresIn: ACCESS_TTL_MS / 1000,
         user: {
             id: user._id,
             name: user.name,
@@ -114,7 +130,7 @@ const register = async (req, res, next, role) => {
             ...customerDetails,
         });
 
-        return sendUser(res, user, 201);
+        return await sendUser(res, user, 201);
     }
     catch (err) {
         if (err.code === 11000) return res
@@ -175,7 +191,7 @@ const login = async (req, res, next, audience = 'owner') => {
         if (audience === 'customer') {
             if (String(user.customerStore) !== String(customerStore._id)) { user.customerStore = customerStore._id; await user.save(); }
         }
-        return sendUser(res, user);
+        return await sendUser(res, user);
     }
     catch (err) {
         return next(err);
@@ -184,13 +200,66 @@ const login = async (req, res, next, audience = 'owner') => {
 
 const customerLogin = (req, res, next) => login(req, res, next, 'customer');
 
-const logout = (req, res) => {
-    res.clearCookie(COOKIE_NAME, {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production'
-    });
-    return res.status(200).json({ message: "Logged out", success: true });
+const readRefreshCookie = (req) => req.cookies?.[REFRESH_COOKIE] || '';
+
+const clearSessionCookies = (res) => {
+    const crossSiteOptions = process.env.NODE_ENV === 'production'
+        ? { ...COOKIE_OPTIONS, sameSite: 'none', secure: true }
+        : COOKIE_OPTIONS;
+    res.clearCookie(ACCESS_COOKIE, { ...crossSiteOptions, maxAge: undefined });
+    res.clearCookie(REFRESH_COOKIE, { ...crossSiteOptions, maxAge: undefined });
+    res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+};
+
+const logout = async (req, res, next) => {
+    try {
+        await revokeRefreshToken(readRefreshCookie(req));
+        clearSessionCookies(res);
+        return res.status(200).json({ message: "Logged out", success: true });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const refreshSession = async (req, res, next) => {
+    try {
+        const session = await renewRefreshToken(readRefreshCookie(req));
+        if (!session) {
+            clearSessionCookies(res);
+            return res.status(401).json({ message: 'Session expired. Please sign in again.', success: false });
+        }
+        const user = await User.findById(session.user);
+        if (!user) {
+            await revokeRefreshToken(readRefreshCookie(req));
+            clearSessionCookies(res);
+            return res.status(401).json({ message: 'Account no longer exists.', success: false });
+        }
+        const accessToken = generateToken(user._id);
+        res.cookie(ACCESS_COOKIE, accessToken, {
+            ...(process.env.NODE_ENV === 'production' ? { ...COOKIE_OPTIONS, sameSite: 'none', secure: true } : COOKIE_OPTIONS),
+            maxAge: ACCESS_TTL_MS,
+        });
+        res.cookie(REFRESH_COOKIE, readRefreshCookie(req), {
+            ...(process.env.NODE_ENV === 'production' ? { ...COOKIE_OPTIONS, sameSite: 'none', secure: true } : COOKIE_OPTIONS),
+            maxAge: REFRESH_TTL_MS,
+        });
+        return res.json({
+            accessToken,
+            expiresIn: ACCESS_TTL_MS / 1000,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone || '',
+                shippingAddress: user.shippingAddress,
+                role: user.role,
+                store: user.store,
+                customerStore: user.customerStore || null,
+            },
+        });
+    } catch (err) {
+        return next(err);
+    }
 };
 
 const getCurrentUser = (req, res) => {
@@ -255,7 +324,8 @@ const deleteCustomerAccount = async (req, res, next) => {
             for (const store of stores) await deleteStoreData(store._id);
         }
         await User.deleteOne({ _id: req.user._id });
-        res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+        await revokeUserRefreshTokens(req.user._id);
+        clearSessionCookies(res);
         return res.json({ success: true, message: 'Account and associated data were deleted' });
     } catch (err) {
         return next(err);
@@ -268,6 +338,7 @@ export {
     login,
     customerLogin,
     logout,
+    refreshSession,
     getCurrentUser,
     updateCustomerProfile,
     deleteCustomerAccount,
