@@ -151,7 +151,11 @@ export function ProductsSection({ store, products, onAdd, preview, category, set
     <div className="container">
       <div className="sf-toolbar">
         <div style={{ minWidth: 0 }}>
-          <SectionHead eyebrow={`${products.length} products`} title={wishOnly ? 'Your wishlist' : 'Shop all products'} />
+          <SectionHead
+            eyebrow={`${products.length} products`}
+            title={wishOnly ? 'Your wishlist' : 'Shop all products'}
+            action={!preview && !wishOnly && <Link to={`/store/${store.slug}/products`} className="sf-view-all">Browse &amp; filter <IconArrow size={15} /></Link>}
+          />
           <div className="sf-chips">
             {categories.map((c) => (
               <button key={c} type="button" className={`sf-chip${c === category ? ' on' : ''}`} onClick={() => setCategory(c)}>{c}</button>

@@ -9,6 +9,7 @@ import Footer from '../../components/storefront/Footer';
 import Loader from '../../components/common/Loader';
 import Home from './Home';
 import ProductDetails from './ProductDetails';
+import ProductList from './ProductList';
 import Shop from '../shop';
 import CustomerLogin from '../auth/CustomerLogin';
 import CustomerRegister from '../auth/CustomerRegister';
@@ -59,6 +60,7 @@ function StoreShell() {
       <main className="sf-body">
         <Routes>
           <Route index element={<Home />} />
+          <Route path="products" element={<ProductList />} />
           <Route path="product/:productId" element={<ProductDetails />} />
           <Route path="login" element={<CustomerLogin />} />
           <Route path="register" element={<CustomerRegister />} />
