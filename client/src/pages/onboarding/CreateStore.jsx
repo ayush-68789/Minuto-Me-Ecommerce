@@ -11,7 +11,8 @@ import { applyPreset, BANNERS, DEFAULT_THEME, PRESETS, resolveTheme, SECTIONS, T
 import Logo from '../../components/common/Logo';
 import StudioPreview from '../../components/studio/StudioPreview';
 import { LayoutPanel, SectionsPanel, SettingsPanel, StylePanel, ThemePanel } from '../../components/studio/StudioPanels';
-import { downscaleImage } from '../../components/studio/imageTools';
+import { uploadImage } from '../../api/uploadApi';
+import { normalizeImageUrl } from '../../utils/imageUrl';
 import { IconArrow, IconCheck, IconEye, IconUpload } from '../../components/common/Icons';
 import './onboarding.css';
 
@@ -55,6 +56,7 @@ export default function CreateStore() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [mobilePreview, setMobilePreview] = useState(false);
+  const [logoUrl, setLogoUrl] = useState('');
   const [sectionFocus, setSectionFocus] = useState(null);
   const [form, setForm] = useState(() =>
     applyPreset(
@@ -67,7 +69,7 @@ export default function CreateStore() {
         template: 'modern',
         branding: { logo: '', primaryColor: '#4f46e5', secondaryColor: '#eef2ff', accentColor: '#f97316', banners: [BANNERS[0], BANNERS[1]] },
         currency: 'INR',
-        features: { payments: true, reviews: true, wishlist: true, coupons: false },
+        features: { reviews: true, wishlist: true, coupons: false },
         theme: { ...DEFAULT_THEME, content: {} },
         social: {},
       },
@@ -123,12 +125,20 @@ export default function CreateStore() {
     if (!file) return;
     if (!file.type.startsWith('image/')) return setError('Logo must be an image');
     try {
-      const logo = await downscaleImage(file, { max: 200, quality: 0.9, square: true });
+      const logo = await uploadImage(file);
       setForm((f) => ({ ...f, branding: { ...f.branding, logo } }));
       setError('');
-    } catch {
-      setError('Could not read that image');
+    } catch (err) {
+      setError(err.message || 'Could not upload that image');
     }
+  };
+
+  const onLogoUrl = () => {
+    const url = normalizeImageUrl(logoUrl);
+    if (!url) return setError('Enter a valid HTTP or HTTPS image URL');
+    setForm((f) => ({ ...f, branding: { ...f.branding, logo: url } }));
+    setLogoUrl('');
+    setError('');
   };
 
   const publish = async () => {
@@ -232,6 +242,10 @@ export default function CreateStore() {
                       <div className="hint">Square PNG/JPG. We can build your palette from it in “Style”.</div>
                     </div>
                     <input ref={logoRef} type="file" accept="image/*" hidden onChange={onLogo} />
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <input aria-label="Logo image URL" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="Or paste an image URL" style={{ width: 220, maxWidth: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 7 }} />
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={onLogoUrl}>Use URL</button>
+                    </div>
                   </div>
                 </div>
                 <div className="field">

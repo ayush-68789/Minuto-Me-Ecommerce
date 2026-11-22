@@ -1,6 +1,10 @@
 // Owner: M4
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { uploadImage } from '../../api/uploadApi';
+import { normalizeImageUrl } from '../../utils/imageUrl';
+
+const CATEGORY_OPTIONS = ['General', 'Apparel', 'Electronics', 'Home & Living', 'Beauty & Wellness', 'Books & Stationery', 'Food & Beverages', 'Accessories', 'Footwear', 'Sports'];
 
 export default function ProductForm({
   initialData = null,
@@ -24,6 +28,25 @@ export default function ProductForm({
 
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [errors, setErrors] = useState({});
+  const [uploadError, setUploadError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [customCategory, setCustomCategory] = useState(Boolean(initialData?.category && !CATEGORY_OPTIONS.includes(initialData.category)));
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      const url = await uploadImage(file);
+      setFormData((prev) => ({ ...prev, images: prev.images.filter(Boolean).concat(url) }));
+    } catch (err) {
+      setUploadError(err.message || 'Could not upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹';
 
@@ -50,11 +73,16 @@ export default function ProductForm({
 
   const handleAddImage = () => {
     if (!imageUrlInput.trim()) return;
-    const cleanUrl = imageUrlInput.trim();
+    const cleanUrl = normalizeImageUrl(imageUrlInput);
+    if (!cleanUrl) {
+      setUploadError('Enter a valid HTTP or HTTPS image URL.');
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       images: prev.images.filter(Boolean).concat(cleanUrl),
     }));
+    setUploadError('');
     setImageUrlInput('');
   };
 
@@ -169,13 +197,18 @@ export default function ProductForm({
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
                   Category
                 </label>
-                <input
-                  type="text"
+                <select
                   name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  placeholder="e.g. Home Goods, Apparel"
-                  list="category-suggestions"
+                  value={customCategory ? '__custom' : formData.category}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom') {
+                      setCustomCategory(true);
+                      setFormData((prev) => ({ ...prev, category: '' }));
+                    } else {
+                      setCustomCategory(false);
+                      setFormData((prev) => ({ ...prev, category: e.target.value }));
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -184,15 +217,13 @@ export default function ProductForm({
                     fontSize: '14px',
                     outline: 'none',
                   }}
-                />
-                <datalist id="category-suggestions">
-                  <option value="Apparel" />
-                  <option value="Electronics" />
-                  <option value="Home & Living" />
-                  <option value="Beauty & Wellness" />
-                  <option value="Books & Stationery" />
-                  <option value="Food & Beverages" />
-                </datalist>
+                >
+                  {customCategory && <option value="__custom">Custom category</option>}
+                  {CATEGORY_OPTIONS.map((category) => <option key={category} value={category}>{category}</option>)}
+                  {!CATEGORY_OPTIONS.includes(formData.category) && formData.category && <option value={formData.category}>{formData.category}</option>}
+                  {!customCategory && <option value="__custom">Add a custom category…</option>}
+                </select>
+                {customCategory && <input autoFocus type="text" value={formData.category} onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))} placeholder="Enter category" maxLength={80} style={{ width: '100%', marginTop: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }} />}
               </div>
 
               <div>
@@ -303,6 +334,11 @@ export default function ProductForm({
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '16px' }}>
             Product Images
           </h2>
+          <label style={{ display: 'inline-block', marginBottom: 12, cursor: uploading ? 'wait' : 'pointer' }}>
+            <span>{uploading ? 'Uploading…' : 'Upload image'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden disabled={uploading} onChange={handleImageUpload} />
+          </label>
+          {uploadError && <p role="alert" style={{ color: '#dc2626' }}>{uploadError}</p>}
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             <input
