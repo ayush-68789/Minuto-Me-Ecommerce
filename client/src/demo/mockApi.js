@@ -51,7 +51,7 @@ const myStore = () => {
   const owned = db.stores.filter((s) => s.owner === u._id);
   return (activeRequestStoreId && owned.find((s) => s._id === activeRequestStoreId)) || owned.find((s) => s._id === u.store) || owned[0] || null;
 };
-const storeSummary = (s) => ({ id: s._id, name: s.businessName, slug: s.slug, currency: s.currency, paymentsEnabled: s.features.payments });
+const storeSummary = (s) => ({ id: s._id, name: s.businessName, slug: s.slug, currency: s.currency });
 // mirrors server/src/validators/storeValidator.js: theme/social are merged, never replaced wholesale
 const mergeDesign = (s, b) => {
   if (b.theme && typeof b.theme === 'object') {
@@ -150,7 +150,7 @@ const routes = [
     need(!db.stores.some((s) => s.slug === slug), 409, 'This store URL is already in use');
     const base = {
       branding: { logo: '', primaryColor: '#4f46e5', secondaryColor: '#eef2ff', accentColor: '#f97316', banners: [] },
-      features: { payments: true, reviews: true, wishlist: true, coupons: false },
+      features: { reviews: true, wishlist: true, coupons: false },
     };
     const store = {
       ...base,
@@ -314,16 +314,16 @@ const routes = [
   ['post', '/orders/quote', (_, b) => {
     const s = activeStoreBySlug(b.storeSlug);
     const { lines, issues, subtotal, shippingFee, total } = priceCart(s, b.items || []);
-    return { store: storeSummary(s), items: lines, issues, subtotal, shippingFee, total };
+    const quoteHash = `mock_quote_${oid().slice(0, 16)}`;
+    return { store: storeSummary(s), items: lines, issues, subtotal, shippingFee, total, quoteHash };
   }],
   ['post', '/orders', (_, b) => {
+    need(me(), 401, 'Please sign in to place your order');
     const s = activeStoreBySlug(b.storeSlug);
     const ci = b.customerInfo || {};
     const sa = b.shippingAddress || {};
     need(ci.name && ci.email && ci.phone, 400, 'customerInfo: name, email and phone are required');
     need(sa.line1 && sa.city && sa.state && sa.postalCode, 400, 'shippingAddress: please complete the address');
-    const method = b.paymentMethod || 'cod';
-    need(method !== 'online' || s.features.payments, 400, 'This store does not accept online payments');
     const { lines, issues, subtotal, shippingFee, total } = priceCart(s, b.items || []);
     if (issues.length) throw new HttpError(409, 'Some items in your cart need attention', { issues });
     for (const l of lines) db.products.find((p) => p._id === l.product).stock -= l.quantity;
@@ -337,8 +337,7 @@ const routes = [
       subtotal,
       shippingFee,
       total,
-      status: 'pending',
-      payment: { method, status: 'unpaid', transactionId: '' },
+      status: 'confirmed',
       createdAt: now(),
       updatedAt: now(),
     };
@@ -346,9 +345,10 @@ const routes = [
     return [201, { order, store: storeSummary(s) }];
   }],
   ['get', '/orders/track/:id', ({ id }, _, q) => {
-    const order = db.orders.find((o) => o._id === id && o.customerInfo.email === String(q.email || '').toLowerCase());
+    const order = db.orders.find((o) => o._id === id);
     need(order, 404, 'Order not found');
-    return { order, store: storeSummary(db.stores.find((s) => s._id === order.store)) };
+    const { customerInfo, shippingAddress, ...publicOrder } = order;
+    return { order: publicOrder, store: storeSummary(db.stores.find((s) => s._id === order.store)) };
   }],
   ['get', '/orders/my', (_, __, q) => {
     const u = requireUser();
@@ -368,13 +368,6 @@ const routes = [
     need(TRANSITIONS[order.status].includes(b.status), 400, `Cannot change status from ${order.status} to ${b.status}`);
     order.status = b.status;
     order.updatedAt = now();
-    return { order };
-  }],
-  ['post', '/payments/:id/simulate', ({ id }, b) => {
-    const order = db.orders.find((o) => o._id === id && o.customerInfo.email === String(b.email || '').toLowerCase());
-    need(order && order.status === 'pending' && order.payment.method === 'online' && order.payment.status !== 'paid', 400, 'This order cannot be paid online');
-    order.status = 'confirmed';
-    order.payment = { ...order.payment, status: 'paid', transactionId: `SIM-${oid().slice(0, 12).toUpperCase()}` };
     return { order };
   }],
 ];

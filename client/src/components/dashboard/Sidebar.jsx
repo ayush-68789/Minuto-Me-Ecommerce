@@ -48,6 +48,15 @@ export default function Sidebar({ store, isOpen: openProp, onClose: closeProp })
       ),
     },
     {
+      label: 'Orders',
+      path: '/dashboard/orders',
+      icon: (
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+        </svg>
+      ),
+    },
+    {
       label: 'Add Product',
       path: '/dashboard/products/new',
       icon: (
